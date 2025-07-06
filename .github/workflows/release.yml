@@ -96,10 +96,14 @@ jobs:
 
       - name: List downloaded files
         run: |
-          echo "Downloaded files:"
-          ls -la base-linux-setup-*
-          echo "Checksum files:"
-          ls -la *.sha256
+          echo "Current directory contents:"
+          ls -la
+          echo "All files matching base-linux-setup pattern:"
+          ls -la base-linux-setup-* || echo "No base-linux-setup files found"
+          echo "All checksum files:"
+          ls -la *.sha256 || echo "No .sha256 files found"
+          echo "All files in current directory:"
+          find . -name "*" -type f
 
       - name: Get version info
         id: version
@@ -147,8 +151,7 @@ jobs:
           name: Release ${{ steps.version.outputs.version }}
           body_path: CHANGELOG.md
           files: |
-            base-linux-setup-*
-            *.sha256
+            ./base-linux-setup-*
           draft: false
           prerelease: false
         env:
