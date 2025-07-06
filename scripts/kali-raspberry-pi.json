@@ -42,6 +42,14 @@
       "optional": false
     },
     {
+      "name": "Install raspi-config",
+      "description": "Install raspi-config configuration tool for Raspberry Pi settings",
+      "type": "script",
+      "script": "#!/bin/bash\nset -e\n\necho \"Installing raspi-config for Kali Linux...\"\n\n# Add Raspbian repository key\necho \"Adding Raspbian repository key...\"\nwget -qO - https://archive.raspberrypi.org/debian/raspberrypi.gpg.key | sudo apt-key add -\n\n# Add Raspbian repository\necho \"Adding Raspbian repository...\"\necho \"deb http://archive.raspberrypi.org/debian/ bullseye main\" | sudo tee /etc/apt/sources.list.d/raspi.list\n\n# Update package lists\nsudo apt-get update\n\n# Install dependencies\necho \"Installing dependencies...\"\nsudo apt-get install -y lua5.1 alsa-utils psmisc\n\n# Fix any broken packages\nsudo apt --fix-broken install -y\n\n# Install raspi-config\necho \"Installing raspi-config...\"\nsudo apt-get install -y raspi-config\n\n# Install additional Raspberry Pi tools\necho \"Installing additional Pi tools...\"\nsudo apt-get install -y rpi-update raspberrypi-bootloader\n\n# Create symbolic links for compatibility\nif [ ! -d \"/boot/firmware\" ] && [ -d \"/boot\" ]; then\n    sudo ln -sf /boot /boot/firmware\nfi\n\necho \"raspi-config installed successfully!\"\necho \"You can now run 'sudo raspi-config' to configure your Raspberry Pi\"\necho \"Note: Some options may not work perfectly on Kali Linux\"\necho \"Repository added: /etc/apt/sources.list.d/raspi.list\"",
+      "elevated": false,
+      "optional": false
+    },
+    {
       "name": "Enable I2C Interface",
       "description": "Enable I2C interface for hardware communication",
       "type": "script",
@@ -62,14 +70,6 @@
       "description": "Install Avahi daemon for mDNS/Zeroconf networking",
       "type": "script",
       "script": "#!/bin/bash\nset -e\n\n# Install Avahi packages\necho \"Installing Avahi mDNS daemon...\"\nsudo apt-get update\nsudo apt-get install -y avahi-daemon avahi-utils\n\n# Configure Avahi\necho \"Configuring Avahi daemon...\"\n\n# Backup original configuration\nsudo cp /etc/avahi/avahi-daemon.conf /etc/avahi/avahi-daemon.conf.backup\n\n# Configure avahi-daemon.conf\nsudo tee /etc/avahi/avahi-daemon.conf << 'EOF'\n[server]\nhost-name=kali-pi\ndomain-name=local\nbrowse-domains=local\nuse-ipv4=yes\nuse-ipv6=no\nallow-interfaces=eth0,wlan0\nratelimit-interval-usec=1000000\nratelimit-burst=1000\n\n[wide-area]\nenable-wide-area=yes\n\n[publish]\ndisable-publishing=no\ndisable-user-service-publishing=no\nadd-service-cookie=no\npublish-addresses=yes\npublish-hinfo=yes\npublish-workstation=yes\npublish-domain=yes\npublish-dns-servers=no\npublish-resolv-conf-dns-servers=no\npublish-aaaa-on-ipv4=yes\npublish-a-on-ipv6=no\n\n[reflector]\nenable-reflector=no\n\n[rlimits]\nrlimit-core=0\nrlimit-data=4194304\nrlimit-fsize=0\nrlimit-nofile=768\nrlimit-stack=4194304\nrlimit-nproc=3\nEOF\n\n# Enable and start Avahi daemon\nsudo systemctl enable avahi-daemon\nsudo systemctl start avahi-daemon\n\necho \"mDNS configured successfully!\"\necho \"Your Raspberry Pi will be accessible as: kali-pi.local\"\necho \"You can also use: ssh user@kali-pi.local\"",
-      "elevated": false,
-      "optional": false
-    },
-    {
-      "name": "Install raspi-config",
-      "description": "Install raspi-config configuration tool for Raspberry Pi settings",
-      "type": "script",
-      "script": "#!/bin/bash\nset -e\n\necho \"Installing raspi-config for Kali Linux...\"\n\n# Add Raspbian repository key\necho \"Adding Raspbian repository key...\"\nwget -qO - https://archive.raspberrypi.org/debian/raspberrypi.gpg.key | sudo apt-key add -\n\n# Add Raspbian repository\necho \"Adding Raspbian repository...\"\necho \"deb http://archive.raspberrypi.org/debian/ bullseye main\" | sudo tee /etc/apt/sources.list.d/raspi.list\n\n# Update package lists\nsudo apt-get update\n\n# Install dependencies\necho \"Installing dependencies...\"\nsudo apt-get install -y lua5.1 alsa-utils psmisc\n\n# Fix any broken packages\nsudo apt --fix-broken install -y\n\n# Install raspi-config\necho \"Installing raspi-config...\"\nsudo apt-get install -y raspi-config\n\n# Install additional Raspberry Pi tools\necho \"Installing additional Pi tools...\"\nsudo apt-get install -y rpi-update raspberrypi-bootloader\n\n# Create symbolic links for compatibility\nif [ ! -d \"/boot/firmware\" ] && [ -d \"/boot\" ]; then\n    sudo ln -sf /boot /boot/firmware\nfi\n\necho \"raspi-config installed successfully!\"\necho \"You can now run 'sudo raspi-config' to configure your Raspberry Pi\"\necho \"Note: Some options may not work perfectly on Kali Linux\"\necho \"Repository added: /etc/apt/sources.list.d/raspi.list\"",
       "elevated": false,
       "optional": false
     }
