@@ -50,6 +50,37 @@ go build -o base-linux-setup .
 make build          # Build the application
 make install        # Install to /usr/local/bin
 make clean          # Clean build artifacts
+make release        # Create cross-platform release builds
+```
+
+### Pre-built Binaries
+
+After building with `make build` or `make release`, you can run the executable directly:
+
+```bash
+# Run from build directory
+./build/base-linux-setup
+
+# Or use a specific platform binary (after make release)
+./build/release/base-linux-setup-linux-amd64    # Linux x86_64
+./build/release/base-linux-setup-linux-arm64    # Linux ARM64 (Raspberry Pi 4, etc.)
+./build/release/base-linux-setup-linux-arm      # Linux ARM (Raspberry Pi 3, etc.)
+./build/release/base-linux-setup-darwin-amd64   # macOS Intel
+./build/release/base-linux-setup-darwin-arm64   # macOS Apple Silicon
+```
+
+### Download and Run (No Build Required)
+
+If you have a pre-built binary, you can run it directly:
+
+```bash
+# Make executable and run
+chmod +x base-linux-setup-linux-arm64
+./base-linux-setup-linux-arm64
+
+# Or move to your PATH
+sudo mv base-linux-setup-linux-arm64 /usr/local/bin/base-linux-setup
+base-linux-setup
 ```
 
 ## Usage
@@ -59,20 +90,50 @@ make clean          # Clean build artifacts
 Run the setup with automatic environment detection:
 
 ```bash
-./base-linux-setup
+# If built with make build
+./build/base-linux-setup
+
+# If using a release binary
+./build/release/base-linux-setup-linux-arm64
+
+# If installed to PATH
+base-linux-setup
 ```
 
 ### Available Commands
 
 ```bash
 # Detect current environment
-./base-linux-setup detect
+./build/base-linux-setup detect
 
 # List all available presets
-./base-linux-setup list-presets
+./build/base-linux-setup list-presets
+
+# Show version information
+./build/base-linux-setup --version
 
 # Show help
-./base-linux-setup --help
+./build/base-linux-setup --help
+
+# Generate shell completion
+./build/base-linux-setup completion bash > base-linux-setup.bash
+source base-linux-setup.bash
+```
+
+### Quick Start with Example Script
+
+For a guided experience, use the included example script:
+
+```bash
+# Make executable and run
+chmod +x example.sh
+./example.sh
+
+# The script will:
+# 1. Build the application if needed
+# 2. Show available commands
+# 3. Let you choose what to run
+# 4. Provide helpful guidance
 ```
 
 ### Interactive Setup Process
@@ -88,17 +149,20 @@ Run the setup with automatic environment detection:
 The main preset includes:
 
 ### 1. System Update
+
 - Updates package lists
 - Upgrades all installed packages
 - Performs distribution upgrade
 
 ### 2. Golang Installation
+
 - Detects system architecture (ARM64, ARM7, etc.)
 - Downloads and installs latest Go version
 - Configures PATH and GOPATH
 - Creates Go workspace structure
 
 ### 3. Essential Development Packages
+
 - Build tools (`build-essential`)
 - Version control (`git`)
 - Network tools (`curl`, `wget`)
@@ -107,12 +171,14 @@ The main preset includes:
 - System utilities (`htop`, `tree`)
 
 ### 4. I2C Interface Setup
+
 - Enables I2C in `/boot/config.txt`
 - Loads I2C kernel modules
 - Installs I2C development tools
 - Configures user permissions
 
 ### 5. Docker Installation (Optional)
+
 - Installs Docker using official script
 - Configures user permissions
 - Enables Docker service
@@ -155,6 +221,7 @@ Elevated privileges: Yes
 ### Backup Location
 
 Configuration backups are stored in:
+
 ```
 ~/.config/base-linux-setup/backups/
 ```
@@ -206,23 +273,27 @@ base-linux-setup/
 ### Common Issues
 
 **neofetch not found**
+
 ```bash
 sudo apt-get install neofetch
 ```
 
 **Permission denied**
+
 ```bash
 # Make sure you have sudo privileges
 sudo -v
 ```
 
 **Go installation fails**
+
 ```bash
 # Check internet connectivity
 ping -c 1 golang.org
 ```
 
 **I2C interface not working**
+
 ```bash
 # Reboot after enabling I2C
 sudo reboot
@@ -231,9 +302,27 @@ sudo reboot
 ### Debug Mode
 
 Enable verbose output:
+
 ```bash
-./base-linux-setup --verbose
+./build/base-linux-setup --verbose
 ```
+
+### Platform-Specific Notes
+
+**Raspberry Pi Users:**
+
+- Use `base-linux-setup-linux-arm64` for Raspberry Pi 4/5 (64-bit)
+- Use `base-linux-setup-linux-arm` for Raspberry Pi 3 and older (32-bit)
+
+**Linux Users:**
+
+- Use `base-linux-setup-linux-amd64` for standard Linux x86_64 systems
+- Use `base-linux-setup-linux-arm64` for ARM64 systems
+
+**macOS Users:**
+
+- Use `base-linux-setup-darwin-arm64` for Apple Silicon Macs (M1/M2/M3)
+- Use `base-linux-setup-darwin-amd64` for Intel Macs
 
 ## License
 
