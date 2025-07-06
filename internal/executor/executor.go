@@ -2,7 +2,6 @@ package executor
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"base-linux-setup/internal/presets"
+
 	"github.com/fatih/color"
 )
 
@@ -69,7 +69,7 @@ func (e *Executor) executeCommands(task presets.Task) error {
 // executeScript executes a script
 func (e *Executor) executeScript(task presets.Task) error {
 	// Create temporary script file
-	tmpFile, err := ioutil.TempFile("", "setup-script-*.sh")
+	tmpFile, err := os.CreateTemp("", "setup-script-*.sh")
 	if err != nil {
 		return fmt.Errorf("failed to create temp script file: %v", err)
 	}
@@ -122,7 +122,7 @@ func (e *Executor) runCommand(command string) error {
 
 	// Run command
 	color.HiBlack("    Running: %s", command)
-	
+
 	startTime := time.Now()
 	err := cmd.Run()
 	duration := time.Since(startTime)
@@ -139,7 +139,7 @@ func (e *Executor) runCommand(command string) error {
 // dryRunTask simulates task execution without actually running commands
 func (e *Executor) dryRunTask(task presets.Task) error {
 	color.Yellow("[DRY RUN] Would execute task: %s", task.Name)
-	
+
 	switch task.Type {
 	case "command":
 		for _, command := range task.Commands {
@@ -235,7 +235,7 @@ func (e *Executor) CreateBackup() error {
 	}
 
 	timestamp := time.Now().Format("20060102-150405")
-	
+
 	for _, file := range filesToBackup {
 		if _, err := os.Stat(file); err == nil {
 			backupFile := filepath.Join(backupDir, fmt.Sprintf("%s.%s", filepath.Base(file), timestamp))
@@ -259,9 +259,9 @@ func (e *Executor) copyFile(src, dst string) error {
 // RestoreBackup restores files from backup
 func (e *Executor) RestoreBackup(timestamp string) error {
 	backupDir := filepath.Join(os.Getenv("HOME"), ".config", "base-linux-setup", "backups")
-	
+
 	// List available backups
-	files, err := ioutil.ReadDir(backupDir)
+	files, err := os.ReadDir(backupDir)
 	if err != nil {
 		return fmt.Errorf("failed to read backup directory: %v", err)
 	}
@@ -274,4 +274,4 @@ func (e *Executor) RestoreBackup(timestamp string) error {
 	}
 
 	return nil
-} 
+}
