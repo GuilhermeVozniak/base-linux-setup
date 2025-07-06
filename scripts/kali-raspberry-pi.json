@@ -48,6 +48,30 @@
       "script": "#!/bin/bash\nset -e\n\n# Enable I2C in config.txt\nif ! grep -q \"dtparam=i2c_arm=on\" /boot/config.txt; then\n    echo \"dtparam=i2c_arm=on\" | sudo tee -a /boot/config.txt\nfi\n\n# Load I2C kernel modules\nif ! grep -q \"i2c-bcm2708\" /etc/modules; then\n    echo \"i2c-bcm2708\" | sudo tee -a /etc/modules\nfi\n\nif ! grep -q \"i2c-dev\" /etc/modules; then\n    echo \"i2c-dev\" | sudo tee -a /etc/modules\nfi\n\n# Load modules now\nsudo modprobe i2c-bcm2708\nsudo modprobe i2c-dev\n\n# Add user to i2c group\nsudo usermod -a -G i2c $USER\n\necho \"I2C interface enabled!\"\necho \"Please reboot your system for changes to take effect\"",
       "elevated": false,
       "optional": false
+    },
+    {
+      "name": "Configure Fixed IP Address",
+      "description": "Configure a static IP address (192.168.1.100) for the Raspberry Pi",
+      "type": "script",
+      "script": "#!/bin/bash\nset -e\n\n# Backup original dhcpcd.conf\nsudo cp /etc/dhcpcd.conf /etc/dhcpcd.conf.backup\n\n# Create static IP configuration\necho \"Configuring static IP address...\"\n\n# Remove any existing static IP configuration\nsudo sed -i '/^interface eth0/,/^$/d' /etc/dhcpcd.conf\nsudo sed -i '/^interface wlan0/,/^$/d' /etc/dhcpcd.conf\n\n# Add static IP configuration for Ethernet\ncat << 'EOF' | sudo tee -a /etc/dhcpcd.conf\n\n# Static IP configuration\ninterface eth0\nstatic ip_address=192.168.1.100/24\nstatic routers=192.168.1.1\nstatic domain_name_servers=8.8.8.8 8.8.4.4\n\n# Optional: Static IP for Wi-Fi (uncomment if needed)\n# interface wlan0\n# static ip_address=192.168.1.100/24\n# static routers=192.168.1.1\n# static domain_name_servers=8.8.8.8 8.8.4.4\nEOF\n\necho \"Static IP configured: 192.168.1.100\"\necho \"Changes will take effect after reboot\"\necho \"Backup saved to /etc/dhcpcd.conf.backup\"",
+      "elevated": false,
+      "optional": false
+    },
+    {
+      "name": "Install and Configure mDNS",
+      "description": "Install Avahi daemon for mDNS/Zeroconf networking",
+      "type": "script",
+      "script": "#!/bin/bash\nset -e\n\n# Install Avahi packages\necho \"Installing Avahi mDNS daemon...\"\nsudo apt-get update\nsudo apt-get install -y avahi-daemon avahi-utils\n\n# Configure Avahi\necho \"Configuring Avahi daemon...\"\n\n# Backup original configuration\nsudo cp /etc/avahi/avahi-daemon.conf /etc/avahi/avahi-daemon.conf.backup\n\n# Configure avahi-daemon.conf\nsudo tee /etc/avahi/avahi-daemon.conf << 'EOF'\n[server]\nhost-name=kali-pi\ndomain-name=local\nbrowse-domains=local\nuse-ipv4=yes\nuse-ipv6=no\nallow-interfaces=eth0,wlan0\nratelimit-interval-usec=1000000\nratelimit-burst=1000\n\n[wide-area]\nenable-wide-area=yes\n\n[publish]\ndisable-publishing=no\ndisable-user-service-publishing=no\nadd-service-cookie=no\npublish-addresses=yes\npublish-hinfo=yes\npublish-workstation=yes\npublish-domain=yes\npublish-dns-servers=no\npublish-resolv-conf-dns-servers=no\npublish-aaaa-on-ipv4=yes\npublish-a-on-ipv6=no\n\n[reflector]\nenable-reflector=no\n\n[rlimits]\nrlimit-core=0\nrlimit-data=4194304\nrlimit-fsize=0\nrlimit-nofile=768\nrlimit-stack=4194304\nrlimit-nproc=3\nEOF\n\n# Enable and start Avahi daemon\nsudo systemctl enable avahi-daemon\nsudo systemctl start avahi-daemon\n\necho \"mDNS configured successfully!\"\necho \"Your Raspberry Pi will be accessible as: kali-pi.local\"\necho \"You can also use: ssh user@kali-pi.local\"",
+      "elevated": false,
+      "optional": false
+    },
+    {
+      "name": "Install raspi-config",
+      "description": "Install raspi-config configuration tool for Raspberry Pi settings",
+      "type": "script",
+      "script": "#!/bin/bash\nset -e\n\necho \"Installing raspi-config for Kali Linux...\"\n\n# Add Raspbian repository key\necho \"Adding Raspbian repository key...\"\nwget -qO - https://archive.raspberrypi.org/debian/raspberrypi.gpg.key | sudo apt-key add -\n\n# Add Raspbian repository\necho \"Adding Raspbian repository...\"\necho \"deb http://archive.raspberrypi.org/debian/ bullseye main\" | sudo tee /etc/apt/sources.list.d/raspi.list\n\n# Update package lists\nsudo apt-get update\n\n# Install dependencies\necho \"Installing dependencies...\"\nsudo apt-get install -y lua5.1 alsa-utils psmisc\n\n# Fix any broken packages\nsudo apt --fix-broken install -y\n\n# Install raspi-config\necho \"Installing raspi-config...\"\nsudo apt-get install -y raspi-config\n\n# Install additional Raspberry Pi tools\necho \"Installing additional Pi tools...\"\nsudo apt-get install -y rpi-update raspberrypi-bootloader\n\n# Create symbolic links for compatibility\nif [ ! -d \"/boot/firmware\" ] && [ -d \"/boot\" ]; then\n    sudo ln -sf /boot /boot/firmware\nfi\n\necho \"raspi-config installed successfully!\"\necho \"You can now run 'sudo raspi-config' to configure your Raspberry Pi\"\necho \"Note: Some options may not work perfectly on Kali Linux\"\necho \"Repository added: /etc/apt/sources.list.d/raspi.list\"",
+      "elevated": false,
+      "optional": false
     }
   ]
-} 
+}
