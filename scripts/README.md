@@ -28,6 +28,7 @@ Each preset file follows this JSON structure:
 ## Task Types
 
 ### 1. Command Tasks
+
 Execute shell commands sequentially.
 
 ```json
@@ -35,16 +36,14 @@ Execute shell commands sequentially.
   "name": "Install Packages",
   "description": "Install essential packages",
   "type": "command",
-  "commands": [
-    "sudo apt-get update",
-    "sudo apt-get install -y git curl"
-  ],
+  "commands": ["sudo apt-get update", "sudo apt-get install -y git curl"],
   "elevated": true,
   "optional": false
 }
 ```
 
 ### 2. Script Tasks
+
 Execute bash scripts.
 
 ```json
@@ -59,6 +58,7 @@ Execute bash scripts.
 ```
 
 ### 3. File Tasks
+
 Create files with specific content.
 
 ```json
@@ -74,6 +74,7 @@ Create files with specific content.
 ```
 
 ### 4. Service Tasks
+
 Manage system services with systemctl.
 
 ```json
@@ -102,7 +103,9 @@ Service actions: `start`, `stop`, `enable`, `disable`, `restart`, `reload`, `sta
 ## Available Presets
 
 ### kali-raspberry-pi.json
+
 Complete setup for Kali Linux on Raspberry Pi including:
+
 - System updates
 - Golang installation with architecture detection
 - Development packages
@@ -140,4 +143,4 @@ You can test your JSON presets by:
 - Use absolute paths where necessary
 - Test on target systems before deploying
 - Consider making destructive operations optional
-- Document any system requirements or dependencies 
+- Document any system requirements or dependencies
