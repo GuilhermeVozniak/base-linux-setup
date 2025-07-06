@@ -146,22 +146,22 @@ chmod +x example.sh
 
 ## Kali Linux Raspberry Pi Preset
 
-The main preset includes:
+The comprehensive preset includes **7 tasks** for complete Raspberry Pi setup:
 
-### 1. System Update
+### 1. Update and Upgrade System
 
-- Updates package lists
-- Upgrades all installed packages
-- Performs distribution upgrade
+- Updates package lists (`apt-get update`)
+- Upgrades all installed packages (`apt-get upgrade`)
+- Performs distribution upgrade (`apt-get dist-upgrade`)
 
-### 2. Golang Installation
+### 2. Install Golang
 
 - Detects system architecture (ARM64, ARM7, etc.)
-- Downloads and installs latest Go version
-- Configures PATH and GOPATH
+- Downloads and installs latest Go version (1.21.5)
+- Configures PATH and GOPATH in `.bashrc`
 - Creates Go workspace structure
 
-### 3. Essential Development Packages
+### 3. Install Required System Packages
 
 - Build tools (`build-essential`)
 - Version control (`git`)
@@ -169,19 +169,40 @@ The main preset includes:
 - Text editors (`vim`, `nano`)
 - Programming languages (`python3`, `nodejs`)
 - System utilities (`htop`, `tree`)
+- I2C development tools (`i2c-tools`, `libi2c-dev`)
 
-### 4. I2C Interface Setup
+### 4. Enable I2C Interface
 
 - Enables I2C in `/boot/config.txt`
-- Loads I2C kernel modules
-- Installs I2C development tools
-- Configures user permissions
+- Loads I2C kernel modules (`i2c-bcm2708`, `i2c-dev`)
+- Installs I2C development tools and Python libraries
+- Configures user permissions for I2C group
 
-### 5. Docker Installation (Optional)
+### 5. Configure Fixed IP Address
 
-- Installs Docker using official script
-- Configures user permissions
-- Enables Docker service
+- Sets static IP address to `192.168.1.100/24`
+- Configures gateway as `192.168.1.1`
+- Uses Google DNS servers (`8.8.8.8`, `8.8.4.4`)
+- Backs up original `dhcpcd.conf` configuration
+- Includes optional Wi-Fi configuration
+
+### 6. Install and Configure mDNS
+
+- Installs Avahi daemon for mDNS/Zeroconf networking
+- Configures hostname as `kali-pi.local`
+- Enables network discovery and service publishing
+- Makes Pi accessible via `kali-pi.local`
+- Supports SSH access using `ssh user@kali-pi.local`
+
+### 7. Install raspi-config
+
+- Adds Raspbian repository for official Pi tools
+- Installs `raspi-config` configuration tool
+- Includes additional tools (`rpi-update`, `raspberrypi-bootloader`)
+- Creates compatibility symbolic links
+- Enables `sudo raspi-config` for system configuration
+
+> **Note**: The raspi-config installation follows the approach documented in community guides ([GitHub](https://github.com/EmilGus/install_raspi-config)) for adding Raspberry Pi tools to Kali Linux.
 
 ## Customization
 
