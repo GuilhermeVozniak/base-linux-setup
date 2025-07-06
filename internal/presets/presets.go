@@ -11,6 +11,17 @@ import (
 	"base-linux-setup/internal/detector"
 )
 
+// EmbeddedJSONGetter is a function type for getting embedded JSON data
+type EmbeddedJSONGetter func(filename string) ([]byte, error)
+
+// embeddedJSONGetter is the function to get embedded JSON data
+var embeddedJSONGetter EmbeddedJSONGetter
+
+// SetEmbeddedJSONGetter sets the function to get embedded JSON data
+func SetEmbeddedJSONGetter(getter EmbeddedJSONGetter) {
+	embeddedJSONGetter = getter
+}
+
 // Task represents a single setup task
 type Task struct {
 	Name        string
@@ -93,12 +104,17 @@ func GetAllPresets() []*Preset {
 
 // getKaliRaspberryPiPreset returns the preset for Kali Linux on Raspberry Pi
 func getKaliRaspberryPiPreset() *Preset {
-	// Try to load from JSON file first
+	// Try to load from embedded JSON first
+	if preset, err := loadPresetFromEmbeddedJSON("kali-raspberry-pi.json"); err == nil {
+		return preset
+	}
+	
+	// Fallback to external JSON file (for development)
 	if preset, err := loadPresetFromJSON("kali-raspberry-pi.json"); err == nil {
 		return preset
 	}
 	
-	// Fallback to hardcoded preset if JSON loading fails
+	// Final fallback to hardcoded preset
 	return &Preset{
 		Name:        "Kali Linux - Raspberry Pi",
 		Environment: "Kali Linux (Raspberry Pi)",
@@ -146,7 +162,28 @@ func getKaliRaspberryPiPreset() *Preset {
 	}
 }
 
-// loadPresetFromJSON loads a preset from a JSON file
+// loadPresetFromEmbeddedJSON loads a preset from embedded JSON data
+func loadPresetFromEmbeddedJSON(filename string) (*Preset, error) {
+	if embeddedJSONGetter == nil {
+		return nil, fmt.Errorf("embedded JSON getter not set")
+	}
+	
+	// Get embedded JSON data
+	data, err := embeddedJSONGetter(filename)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Parse JSON
+	var preset Preset
+	if err := json.Unmarshal(data, &preset); err != nil {
+		return nil, fmt.Errorf("failed to parse embedded preset JSON: %v", err)
+	}
+	
+	return &preset, nil
+}
+
+// loadPresetFromJSON loads a preset from a JSON file (fallback for development)
 func loadPresetFromJSON(filename string) (*Preset, error) {
 	// Get the directory where the executable is located
 	execPath, err := os.Executable()

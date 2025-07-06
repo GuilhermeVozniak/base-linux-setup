@@ -22,6 +22,9 @@ var (
 )
 
 func main() {
+	// Set the embedded JSON getter for presets
+	presets.SetEmbeddedJSONGetter(GetEmbeddedJSON)
+	
 	rootCmd := &cobra.Command{
 		Use:     "base-linux-setup",
 		Short:   "A CLI tool to setup your local environment based on detected OS",

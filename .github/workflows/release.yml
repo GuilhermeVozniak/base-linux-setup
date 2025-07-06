@@ -62,6 +62,7 @@ jobs:
             BINARY_NAME="${BINARY_NAME}.exe"
           fi
 
+          # Build with embedded JSON files - no external scripts directory needed
           go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME} -X main.commit=${COMMIT}" -o ${BINARY_NAME} .
 
           # Create checksum
@@ -123,6 +124,11 @@ jobs:
             echo "First release of Base Linux Setup CLI tool." >> CHANGELOG.md
           fi
 
+          echo "" >> CHANGELOG.md
+          echo "## 🚀 Key Features" >> CHANGELOG.md
+          echo "- **Standalone binaries**: No external dependencies required" >> CHANGELOG.md
+          echo "- **Embedded presets**: JSON configurations built into the binary" >> CHANGELOG.md
+          echo "- **Cross-platform**: Supports Linux ARM64, ARM, and x86_64" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           echo "## Installation" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
