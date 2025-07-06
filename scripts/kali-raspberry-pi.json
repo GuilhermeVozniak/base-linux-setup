@@ -1,0 +1,53 @@
+{
+  "name": "Kali Linux - Raspberry Pi",
+  "environment": "Kali Linux (Raspberry Pi)",
+  "description": "Complete setup for Kali Linux on Raspberry Pi with development tools",
+  "tasks": [
+    {
+      "name": "Update and Upgrade System",
+      "description": "Update package lists and upgrade all installed packages",
+      "type": "command",
+      "commands": [
+        "sudo apt-get update",
+        "sudo apt-get upgrade -y",
+        "sudo apt-get dist-upgrade -y"
+      ],
+      "elevated": true,
+      "optional": false
+    },
+    {
+      "name": "Install Golang",
+      "description": "Install Go programming language",
+      "type": "script",
+      "script": "#!/bin/bash\nset -e\n\n# Remove old Go installation\nsudo rm -rf /usr/local/go\n\n# Detect architecture\nARCH=$(uname -m)\ncase $ARCH in\n    \"x86_64\") GOARCH=\"amd64\" ;;\n    \"aarch64\"|\"arm64\") GOARCH=\"arm64\" ;;\n    \"armv7l\"|\"armv6l\") GOARCH=\"armv6l\" ;;\n    *) echo \"Unsupported architecture: $ARCH\"; exit 1 ;;\nesac\n\n# Download and install Go\nGO_VERSION=\"1.21.5\"\nwget https://golang.org/dl/go${GO_VERSION}.linux-${GOARCH}.tar.gz\nsudo tar -C /usr/local -xzf go${GO_VERSION}.linux-${GOARCH}.tar.gz\nrm go${GO_VERSION}.linux-${GOARCH}.tar.gz\n\n# Add Go to PATH\necho 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc\necho 'export GOPATH=$HOME/go' >> ~/.bashrc\necho 'export PATH=$PATH:$GOPATH/bin' >> ~/.bashrc\n\n# Create GOPATH directory\nmkdir -p $HOME/go/{bin,pkg,src}\n\necho \"Go installed successfully!\"\necho \"Please run 'source ~/.bashrc' or restart your terminal\"",
+      "elevated": false,
+      "optional": false
+    },
+    {
+      "name": "Install Required System Packages",
+      "description": "Install essential development and system packages",
+      "type": "command",
+      "commands": [
+        "sudo apt-get install -y build-essential",
+        "sudo apt-get install -y git curl wget",
+        "sudo apt-get install -y vim nano",
+        "sudo apt-get install -y python3 python3-pip",
+        "sudo apt-get install -y nodejs npm",
+        "sudo apt-get install -y htop tree",
+        "sudo apt-get install -y i2c-tools",
+        "sudo apt-get install -y libi2c-dev",
+        "sudo apt-get install -y python3-smbus"
+      ],
+      "elevated": true,
+      "optional": false
+    },
+    {
+      "name": "Enable I2C Interface",
+      "description": "Enable I2C interface for hardware communication",
+      "type": "script",
+      "script": "#!/bin/bash\nset -e\n\n# Enable I2C in config.txt\nif ! grep -q \"dtparam=i2c_arm=on\" /boot/config.txt; then\n    echo \"dtparam=i2c_arm=on\" | sudo tee -a /boot/config.txt\nfi\n\n# Load I2C kernel modules\nif ! grep -q \"i2c-bcm2708\" /etc/modules; then\n    echo \"i2c-bcm2708\" | sudo tee -a /etc/modules\nfi\n\nif ! grep -q \"i2c-dev\" /etc/modules; then\n    echo \"i2c-dev\" | sudo tee -a /etc/modules\nfi\n\n# Load modules now\nsudo modprobe i2c-bcm2708\nsudo modprobe i2c-dev\n\n# Add user to i2c group\nsudo usermod -a -G i2c $USER\n\necho \"I2C interface enabled!\"\necho \"Please reboot your system for changes to take effect\"",
+      "elevated": false,
+      "optional": false
+    }
+  ]
+} 

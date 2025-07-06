@@ -1,8 +1,14 @@
 package presets
 
 import (
-	"base-linux-setup/internal/detector"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
+
+	"base-linux-setup/internal/detector"
 )
 
 // Task represents a single setup task
@@ -87,6 +93,12 @@ func GetAllPresets() []*Preset {
 
 // getKaliRaspberryPiPreset returns the preset for Kali Linux on Raspberry Pi
 func getKaliRaspberryPiPreset() *Preset {
+	// Try to load from JSON file first
+	if preset, err := loadPresetFromJSON("kali-raspberry-pi.json"); err == nil {
+		return preset
+	}
+	
+	// Fallback to hardcoded preset if JSON loading fails
 	return &Preset{
 		Name:        "Kali Linux - Raspberry Pi",
 		Environment: "Kali Linux (Raspberry Pi)",
@@ -106,183 +118,73 @@ func getKaliRaspberryPiPreset() *Preset {
 			{
 				Name:        "Install Golang",
 				Description: "Install Go programming language",
-				Type:        "script",
-				Script: `
-#!/bin/bash
-set -e
-
-# Remove old Go installation
-sudo rm -rf /usr/local/go
-
-# Detect architecture
-ARCH=$(uname -m)
-case $ARCH in
-    "x86_64") GOARCH="amd64" ;;
-    "aarch64"|"arm64") GOARCH="arm64" ;;
-    "armv7l"|"armv6l") GOARCH="armv6l" ;;
-    *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
-esac
-
-# Download and install Go
-GO_VERSION="1.21.5"
-wget https://golang.org/dl/go${GO_VERSION}.linux-${GOARCH}.tar.gz
-sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-${GOARCH}.tar.gz
-rm go${GO_VERSION}.linux-${GOARCH}.tar.gz
-
-# Add Go to PATH
-echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-echo 'export GOPATH=$HOME/go' >> ~/.bashrc
-echo 'export PATH=$PATH:$GOPATH/bin' >> ~/.bashrc
-
-# Create GOPATH directory
-mkdir -p $HOME/go/{bin,pkg,src}
-
-echo "Go installed successfully!"
-echo "Please run 'source ~/.bashrc' or restart your terminal"
-`,
-				Elevated: false,
+				Type:        "command",
+				Commands: []string{
+					"sudo apt-get install -y golang-go",
+				},
+				Elevated: true,
 			},
 			{
 				Name:        "Install Required System Packages",
 				Description: "Install essential development and system packages",
 				Type:        "command",
 				Commands: []string{
-					"sudo apt-get install -y build-essential",
-					"sudo apt-get install -y git curl wget",
-					"sudo apt-get install -y vim nano",
-					"sudo apt-get install -y python3 python3-pip",
-					"sudo apt-get install -y nodejs npm",
-					"sudo apt-get install -y htop tree",
-					"sudo apt-get install -y i2c-tools",
-					"sudo apt-get install -y libi2c-dev",
-					"sudo apt-get install -y python3-smbus",
+					"sudo apt-get install -y build-essential git curl wget vim python3 python3-pip nodejs npm htop tree i2c-tools libi2c-dev python3-smbus",
 				},
 				Elevated: true,
 			},
 			{
 				Name:        "Enable I2C Interface",
 				Description: "Enable I2C interface for hardware communication",
-				Type:        "script",
-				Script: `
-#!/bin/bash
-set -e
-
-# Enable I2C in config.txt
-if ! grep -q "dtparam=i2c_arm=on" /boot/config.txt; then
-    echo "dtparam=i2c_arm=on" | sudo tee -a /boot/config.txt
-fi
-
-# Load I2C kernel modules
-if ! grep -q "i2c-bcm2708" /etc/modules; then
-    echo "i2c-bcm2708" | sudo tee -a /etc/modules
-fi
-
-if ! grep -q "i2c-dev" /etc/modules; then
-    echo "i2c-dev" | sudo tee -a /etc/modules
-fi
-
-# Load modules now
-sudo modprobe i2c-bcm2708
-sudo modprobe i2c-dev
-
-# Add user to i2c group
-sudo usermod -a -G i2c $USER
-
-echo "I2C interface enabled!"
-echo "Please reboot your system for changes to take effect"
-`,
-				Elevated: false,
-			},
-			{
-				Name:        "Install Docker",
-				Description: "Install Docker container platform",
-				Type:        "script",
-				Script: `
-#!/bin/bash
-set -e
-
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-rm get-docker.sh
-
-# Add user to docker group
-sudo usermod -aG docker $USER
-
-echo "Docker installed successfully!"
-echo "Please log out and log back in for group changes to take effect"
-`,
-				Elevated: false,
-				Optional: true,
-			},
-			{
-				Name:        "Enable Docker Service",
-				Description: "Enable and start Docker service",
-				Type:        "service",
-				Commands:    []string{"docker", "enable"},
-				Elevated:    true,
-				Optional:    true,
-			},
-			{
-				Name:        "Start Docker Service",
-				Description: "Start Docker service",
-				Type:        "service",
-				Commands:    []string{"docker", "start"},
-				Elevated:    true,
-				Optional:    true,
-			},
-			{
-				Name:        "Create Development Aliases",
-				Description: "Create useful development aliases",
-				Type:        "file",
-				Commands:    []string{"/home/kali/.bash_aliases", "644"},
-				Script: `# Development aliases
-alias ll='ls -alF'
-alias la='ls -A'
-alias l='ls -CF'
-alias ..='cd ..'
-alias ...='cd ../..'
-alias grep='grep --color=auto'
-alias fgrep='fgrep --color=auto'
-alias egrep='egrep --color=auto'
-
-# Git aliases
-alias gs='git status'
-alias ga='git add'
-alias gc='git commit'
-alias gp='git push'
-alias gl='git log --oneline'
-alias gd='git diff'
-
-# Docker aliases
-alias dps='docker ps'
-alias dpa='docker ps -a'
-alias di='docker images'
-alias drm='docker rm'
-alias drmi='docker rmi'
-
-# System aliases
-alias update='sudo apt update && sudo apt upgrade'
-alias install='sudo apt install'
-alias search='apt search'
-alias info='apt info'
-
-# Network aliases
-alias ports='netstat -tuln'
-alias listening='netstat -tuln | grep LISTEN'
-alias ping='ping -c 5'
-
-# Development tools
-alias py='python3'
-alias pip='pip3'
-alias server='python3 -m http.server'
-alias json='python3 -m json.tool'
-`,
-				Elevated: false,
-				Optional: true,
+				Type:        "command",
+				Commands: []string{
+					"sudo raspi-config nonint do_i2c 0",
+				},
+				Elevated: true,
 			},
 		},
 	}
+}
+
+// loadPresetFromJSON loads a preset from a JSON file
+func loadPresetFromJSON(filename string) (*Preset, error) {
+	// Get the directory where the executable is located
+	execPath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get executable path: %v", err)
+	}
+	
+	// Look for scripts directory relative to executable
+	scriptDir := filepath.Join(filepath.Dir(execPath), "scripts")
+	
+	// If not found, try relative to source code (for development)
+	if _, err := os.Stat(scriptDir); os.IsNotExist(err) {
+		// Get current file's directory for development
+		_, currentFile, _, _ := runtime.Caller(0)
+		projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
+		scriptDir = filepath.Join(projectRoot, "scripts")
+	}
+	
+	filePath := filepath.Join(scriptDir, filename)
+	
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("preset file not found: %s", filePath)
+	}
+	
+	// Read the JSON file
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read preset file: %v", err)
+	}
+	
+	// Parse JSON
+	var preset Preset
+	if err := json.Unmarshal(data, &preset); err != nil {
+		return nil, fmt.Errorf("failed to parse preset JSON: %v", err)
+	}
+	
+	return &preset, nil
 }
 
 // Helper functions for environment detection

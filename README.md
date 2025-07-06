@@ -244,21 +244,54 @@ base-linux-setup/
 │   └── list.go            # List presets command
 ├── internal/              # Internal packages
 │   ├── detector/          # Environment detection logic
-│   ├── presets/           # Preset definitions
+│   ├── presets/           # Preset definitions and JSON loader
 │   ├── ui/               # User interface components
 │   └── executor/          # Task execution engine
+├── scripts/               # JSON preset configurations
+│   ├── kali-raspberry-pi.json  # Kali Linux Raspberry Pi preset
+│   └── README.md          # JSON format documentation
 ├── main.go               # Main entry point
 ├── go.mod               # Go module dependencies
 ├── Makefile             # Build automation
+├── LICENSE              # MIT License
+├── example.sh           # Usage examples
 └── README.md            # This file
 ```
 
 ### Adding New Presets
 
+**Option 1: JSON Configuration (Recommended)**
+
+1. Create a new JSON file in the `scripts/` directory
+2. Follow the JSON format documented in `scripts/README.md`
+3. Update the detection logic in `internal/presets/presets.go` to load your JSON file
+4. Test with `./build/base-linux-setup list-presets`
+
+**Option 2: Go Code**
+
 1. Create a new preset function in `internal/presets/presets.go`
 2. Add detection logic in the `GetPreset` function
 3. Define tasks using the `Task` struct
 4. Test with various environments
+
+**JSON Format Example:**
+
+```json
+{
+  "name": "My Custom Preset",
+  "environment": "Custom Linux",
+  "description": "Custom setup tasks",
+  "tasks": [
+    {
+      "name": "Install Tools",
+      "type": "command",
+      "commands": ["sudo apt-get install -y htop"],
+      "elevated": true,
+      "optional": false
+    }
+  ]
+}
+```
 
 ### Contributing
 
