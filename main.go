@@ -6,20 +6,28 @@ import (
 
 	"base-linux-setup/cmd"
 	"base-linux-setup/internal/detector"
+	"base-linux-setup/internal/executor"
 	"base-linux-setup/internal/presets"
 	"base-linux-setup/internal/ui"
-	"base-linux-setup/internal/executor"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
+// Version information - set by build flags
+var (
+	version   = "dev"
+	buildTime = "unknown"
+	commit    = "unknown"
+)
+
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "base-linux-setup",
-		Short: "A CLI tool to setup your local environment based on detected OS",
-		Long:  `Base Linux Setup detects your environment and provides customizable presets for system configuration.`,
-		Run:   runSetup,
+		Use:     "base-linux-setup",
+		Short:   "A CLI tool to setup your local environment based on detected OS",
+		Long:    `Base Linux Setup detects your environment and provides customizable presets for system configuration.`,
+		Run:     runSetup,
+		Version: fmt.Sprintf("%s (built %s, commit %s)", version, buildTime, commit),
 	}
 
 	rootCmd.AddCommand(cmd.NewDetectCommand())
@@ -92,10 +100,10 @@ func runSetup(cmd *cobra.Command, args []string) {
 	executor := executor.NewExecutor()
 	for i, task := range customizedPreset.Tasks {
 		color.Cyan("Executing task %d/%d: %s", i+1, len(customizedPreset.Tasks), task.Name)
-		
+
 		if err := executor.ExecuteTask(task); err != nil {
 			color.Red("Error executing task '%s': %v", task.Name, err)
-			
+
 			if !ui.ContinueOnError() {
 				color.Yellow("Setup cancelled.")
 				os.Exit(1)
@@ -117,4 +125,4 @@ func printBanner() {
 ╚══════════════════════════════════════════════════════════════╝
 `
 	color.HiCyan(banner)
-} 
+}

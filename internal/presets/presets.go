@@ -9,7 +9,7 @@ import (
 type Task struct {
 	Name        string
 	Description string
-	Type        string   // "command", "script", "file", "service"
+	Type        string // "command", "script", "file", "service"
 	Commands    []string
 	Script      string
 	Elevated    bool // requires sudo
@@ -209,12 +209,74 @@ rm get-docker.sh
 # Add user to docker group
 sudo usermod -aG docker $USER
 
-# Enable Docker service
-sudo systemctl enable docker
-sudo systemctl start docker
-
 echo "Docker installed successfully!"
 echo "Please log out and log back in for group changes to take effect"
+`,
+				Elevated: false,
+				Optional: true,
+			},
+			{
+				Name:        "Enable Docker Service",
+				Description: "Enable and start Docker service",
+				Type:        "service",
+				Commands:    []string{"docker", "enable"},
+				Elevated:    true,
+				Optional:    true,
+			},
+			{
+				Name:        "Start Docker Service",
+				Description: "Start Docker service",
+				Type:        "service",
+				Commands:    []string{"docker", "start"},
+				Elevated:    true,
+				Optional:    true,
+			},
+			{
+				Name:        "Create Development Aliases",
+				Description: "Create useful development aliases",
+				Type:        "file",
+				Commands:    []string{"/home/kali/.bash_aliases", "644"},
+				Script: `# Development aliases
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias grep='grep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias egrep='egrep --color=auto'
+
+# Git aliases
+alias gs='git status'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gl='git log --oneline'
+alias gd='git diff'
+
+# Docker aliases
+alias dps='docker ps'
+alias dpa='docker ps -a'
+alias di='docker images'
+alias drm='docker rm'
+alias drmi='docker rmi'
+
+# System aliases
+alias update='sudo apt update && sudo apt upgrade'
+alias install='sudo apt install'
+alias search='apt search'
+alias info='apt info'
+
+# Network aliases
+alias ports='netstat -tuln'
+alias listening='netstat -tuln | grep LISTEN'
+alias ping='ping -c 5'
+
+# Development tools
+alias py='python3'
+alias pip='pip3'
+alias server='python3 -m http.server'
+alias json='python3 -m json.tool'
 `,
 				Elevated: false,
 				Optional: true,
@@ -332,4 +394,4 @@ func getArchPreset() *Preset {
 			},
 		},
 	}
-} 
+}

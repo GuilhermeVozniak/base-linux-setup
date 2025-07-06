@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -92,15 +93,111 @@ func (e *Executor) executeScript(task presets.Task) error {
 
 // createFile creates a file with specified content
 func (e *Executor) createFile(task presets.Task) error {
-	// Extract file path and content from task
-	// This would need to be implemented based on how file tasks are structured
-	return fmt.Errorf("file task type not fully implemented")
+	// File tasks expect Commands[0] to be the file path and Script to be the content
+	if len(task.Commands) == 0 {
+		return fmt.Errorf("file task requires file path in Commands[0]")
+	}
+
+	filePath := task.Commands[0]
+	content := task.Script
+
+	// Create directory if it doesn't exist
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %v", dir, err)
+	}
+
+	// Create or overwrite the file
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create file %s: %v", filePath, err)
+	}
+	defer file.Close()
+
+	// Write content to file
+	if _, err := file.WriteString(content); err != nil {
+		return fmt.Errorf("failed to write content to file %s: %v", filePath, err)
+	}
+
+	// Set file permissions if specified in Commands[1]
+	if len(task.Commands) > 1 {
+		if perm, err := strconv.ParseUint(task.Commands[1], 8, 32); err == nil {
+			if err := os.Chmod(filePath, os.FileMode(perm)); err != nil {
+				color.Yellow("Warning: Failed to set permissions on %s: %v", filePath, err)
+			}
+		}
+	}
+
+	color.HiGreen("    ✓ File created: %s", filePath)
+	return nil
 }
 
 // manageService manages system services
 func (e *Executor) manageService(task presets.Task) error {
-	// This would handle systemctl commands
-	return fmt.Errorf("service task type not fully implemented")
+	// Service tasks expect Commands to contain systemctl operations
+	// Format: ["service_name", "action"] where action is start/stop/enable/disable/restart
+	if len(task.Commands) < 2 {
+		return fmt.Errorf("service task requires service name and action in Commands")
+	}
+	
+	serviceName := task.Commands[0]
+	action := task.Commands[1]
+	
+	// Validate action
+	validActions := []string{"start", "stop", "enable", "disable", "restart", "reload", "status"}
+	isValidAction := false
+	for _, validAction := range validActions {
+		if action == validAction {
+			isValidAction = true
+			break
+		}
+	}
+	
+	if !isValidAction {
+		return fmt.Errorf("invalid service action: %s. Valid actions: %v", action, validActions)
+	}
+	
+	// Build systemctl command
+	var cmd *exec.Cmd
+	if action == "status" {
+		// For status, we don't need sudo and we want to capture output
+		cmd = exec.Command("systemctl", action, serviceName)
+	} else {
+		// For other actions, we typically need sudo
+		cmd = exec.Command("sudo", "systemctl", action, serviceName)
+	}
+	
+	// Set up command execution
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	
+	color.HiBlack("    Running: systemctl %s %s", action, serviceName)
+	
+	startTime := time.Now()
+	err := cmd.Run()
+	duration := time.Since(startTime)
+	
+	if err != nil {
+		color.Red("    ✗ Service operation failed in %v", duration)
+		return fmt.Errorf("systemctl %s %s failed: %v", action, serviceName, err)
+	}
+	
+	color.HiGreen("    ✓ Service operation completed in %v", duration)
+	
+	// Additional actions based on the operation
+	switch action {
+	case "enable":
+		color.HiBlack("    Service %s will start automatically on boot", serviceName)
+	case "disable":
+		color.HiBlack("    Service %s will not start automatically on boot", serviceName)
+	case "start":
+		color.HiBlack("    Service %s is now running", serviceName)
+	case "stop":
+		color.HiBlack("    Service %s is now stopped", serviceName)
+	}
+	
+	return nil
 }
 
 // runCommand runs a single command
