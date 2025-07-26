@@ -16,4 +16,4 @@ func GetEmbeddedJSON(filename string) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("embedded preset file not found: %s", filename)
 	}
-} 
+}

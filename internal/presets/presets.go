@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -24,21 +25,148 @@ func SetEmbeddedJSONGetter(getter EmbeddedJSONGetter) {
 
 // Task represents a single setup task
 type Task struct {
-	Name        string
-	Description string
-	Type        string // "command", "script", "file", "service"
-	Commands    []string
-	Script      string
-	Elevated    bool // requires sudo
-	Optional    bool
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Type        string   `json:"type"` // "command", "script", "file", "service"
+	Commands    []string `json:"commands"`
+	Script      string   `json:"script"`
+	Elevated    bool     `json:"elevated"` // requires sudo
+	Optional    bool     `json:"optional"`
+	Condition   string   `json:"condition,omitempty"`   // Shell command to check if task should run
+	DependsOn   []string `json:"depends_on,omitempty"` // Array of task names this task depends on
 }
 
 // Preset represents a collection of tasks for a specific environment
 type Preset struct {
-	Name        string
-	Environment string
-	Description string
-	Tasks       []Task
+	Name        string `json:"name"`
+	Environment string `json:"environment"`
+	Description string `json:"description"`
+	Tasks       []Task `json:"tasks"`
+}
+
+// LoadExternalPreset loads a preset from an external JSON file
+func LoadExternalPreset(filePath string) (*Preset, error) {
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("configuration file not found: %s", filePath)
+	}
+
+	// Read the JSON file
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read configuration file: %v", err)
+	}
+
+	// Parse JSON
+	var preset Preset
+	if err := json.Unmarshal(data, &preset); err != nil {
+		return nil, fmt.Errorf("failed to parse configuration JSON: %v", err)
+	}
+
+	// Validate preset
+	if err := validatePreset(&preset); err != nil {
+		return nil, fmt.Errorf("invalid preset configuration: %v", err)
+	}
+
+	return &preset, nil
+}
+
+// validatePreset validates the preset configuration
+func validatePreset(preset *Preset) error {
+	if preset.Name == "" {
+		return fmt.Errorf("preset name is required")
+	}
+
+	if len(preset.Tasks) == 0 {
+		return fmt.Errorf("preset must have at least one task")
+	}
+
+	// Validate tasks and dependencies
+	taskNames := make(map[string]bool)
+	for _, task := range preset.Tasks {
+		if task.Name == "" {
+			return fmt.Errorf("task name is required")
+		}
+		taskNames[task.Name] = true
+	}
+
+	// Validate dependencies
+	for _, task := range preset.Tasks {
+		for _, dep := range task.DependsOn {
+			if !taskNames[dep] {
+				return fmt.Errorf("task '%s' depends on non-existent task '%s'", task.Name, dep)
+			}
+		}
+	}
+
+	return nil
+}
+
+// CheckTaskCondition checks if a task's condition is met
+func CheckTaskCondition(task *Task) (bool, error) {
+	if task.Condition == "" {
+		return true, nil // No condition means always run
+	}
+
+	cmd := exec.Command("sh", "-c", task.Condition)
+	err := cmd.Run()
+	
+	// If command exits with status 0, condition is met
+	return err == nil, nil
+}
+
+// SortTasksByDependencies sorts tasks to ensure dependencies are executed first
+func SortTasksByDependencies(tasks []Task) ([]Task, error) {
+	if len(tasks) == 0 {
+		return tasks, nil
+	}
+
+	// Create a map of task names to tasks
+	taskMap := make(map[string]*Task)
+	for i := range tasks {
+		taskMap[tasks[i].Name] = &tasks[i]
+	}
+
+	// Track visited and recursion stack for cycle detection
+	visited := make(map[string]bool)
+	recStack := make(map[string]bool)
+	sorted := make([]Task, 0, len(tasks))
+
+	// DFS function for topological sort
+	var dfs func(taskName string) error
+	dfs = func(taskName string) error {
+		if recStack[taskName] {
+			return fmt.Errorf("circular dependency detected involving task '%s'", taskName)
+		}
+		if visited[taskName] {
+			return nil
+		}
+
+		visited[taskName] = true
+		recStack[taskName] = true
+
+		task := taskMap[taskName]
+		for _, dep := range task.DependsOn {
+			if err := dfs(dep); err != nil {
+				return err
+			}
+		}
+
+		recStack[taskName] = false
+		sorted = append(sorted, *task)
+		return nil
+	}
+
+	// Sort all tasks
+	for taskName := range taskMap {
+		if !visited[taskName] {
+			if err := dfs(taskName); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return sorted, nil
 }
 
 // GetPreset returns the appropriate preset for the given environment
@@ -108,12 +236,12 @@ func getKaliRaspberryPiPreset() *Preset {
 	if preset, err := loadPresetFromEmbeddedJSON("kali-raspberry-pi.json"); err == nil {
 		return preset
 	}
-	
+
 	// Fallback to external JSON file (for development)
 	if preset, err := loadPresetFromJSON("kali-raspberry-pi.json"); err == nil {
 		return preset
 	}
-	
+
 	// Final fallback to hardcoded preset
 	return &Preset{
 		Name:        "Kali Linux - Raspberry Pi",
@@ -167,19 +295,19 @@ func loadPresetFromEmbeddedJSON(filename string) (*Preset, error) {
 	if embeddedJSONGetter == nil {
 		return nil, fmt.Errorf("embedded JSON getter not set")
 	}
-	
+
 	// Get embedded JSON data
 	data, err := embeddedJSONGetter(filename)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Parse JSON
 	var preset Preset
 	if err := json.Unmarshal(data, &preset); err != nil {
 		return nil, fmt.Errorf("failed to parse embedded preset JSON: %v", err)
 	}
-	
+
 	return &preset, nil
 }
 
@@ -190,10 +318,10 @@ func loadPresetFromJSON(filename string) (*Preset, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get executable path: %v", err)
 	}
-	
+
 	// Look for scripts directory relative to executable
 	scriptDir := filepath.Join(filepath.Dir(execPath), "scripts")
-	
+
 	// If not found, try relative to source code (for development)
 	if _, err := os.Stat(scriptDir); os.IsNotExist(err) {
 		// Get current file's directory for development
@@ -201,26 +329,26 @@ func loadPresetFromJSON(filename string) (*Preset, error) {
 		projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
 		scriptDir = filepath.Join(projectRoot, "scripts")
 	}
-	
+
 	filePath := filepath.Join(scriptDir, filename)
-	
+
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("preset file not found: %s", filePath)
 	}
-	
+
 	// Read the JSON file
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read preset file: %v", err)
 	}
-	
+
 	// Parse JSON
 	var preset Preset
 	if err := json.Unmarshal(data, &preset); err != nil {
 		return nil, fmt.Errorf("failed to parse preset JSON: %v", err)
 	}
-	
+
 	return &preset, nil
 }
 

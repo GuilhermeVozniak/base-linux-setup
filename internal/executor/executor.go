@@ -35,6 +35,16 @@ func NewDryRunExecutor() *Executor {
 
 // ExecuteTask executes a single task
 func (e *Executor) ExecuteTask(task presets.Task) error {
+	// Check task condition before execution
+	shouldRun, err := presets.CheckTaskCondition(&task)
+	if err != nil {
+		color.Yellow("Warning: Failed to check condition for task '%s': %v", task.Name, err)
+		color.Yellow("Proceeding with task execution...")
+	} else if !shouldRun {
+		color.HiBlack("⊗ Skipping task '%s' - condition not met", task.Name)
+		return nil
+	}
+
 	if e.dryRun {
 		return e.dryRunTask(task)
 	}
@@ -51,6 +61,29 @@ func (e *Executor) ExecuteTask(task presets.Task) error {
 	default:
 		return fmt.Errorf("unknown task type: %s", task.Type)
 	}
+}
+
+// ExecutePresetWithDependencies executes a preset with proper dependency ordering
+func (e *Executor) ExecutePresetWithDependencies(preset *presets.Preset) error {
+	// Sort tasks by dependencies
+	sortedTasks, err := presets.SortTasksByDependencies(preset.Tasks)
+	if err != nil {
+		return fmt.Errorf("failed to resolve task dependencies: %v", err)
+	}
+
+	// Execute tasks in dependency order
+	for i, task := range sortedTasks {
+		color.Cyan("Executing task %d/%d: %s", i+1, len(sortedTasks), task.Name)
+
+		if err := e.ExecuteTask(task); err != nil {
+			return fmt.Errorf("error executing task '%s': %v", task.Name, err)
+		}
+		
+		color.Green("✓ Task completed: %s", task.Name)
+		fmt.Println()
+	}
+
+	return nil
 }
 
 // executeCommands executes a list of commands

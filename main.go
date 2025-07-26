@@ -21,10 +21,15 @@ var (
 	commit    = "unknown"
 )
 
+// Global flags
+var (
+	configFile string
+)
+
 func main() {
 	// Set the embedded JSON getter for presets
 	presets.SetEmbeddedJSONGetter(GetEmbeddedJSON)
-	
+
 	rootCmd := &cobra.Command{
 		Use:     "base-linux-setup",
 		Short:   "A CLI tool to setup your local environment based on detected OS",
@@ -32,6 +37,9 @@ func main() {
 		Run:     runSetup,
 		Version: fmt.Sprintf("%s (built %s, commit %s)", version, buildTime, commit),
 	}
+
+	// Add global flags
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "Path to external configuration file (JSON)")
 
 	rootCmd.AddCommand(cmd.NewDetectCommand())
 	rootCmd.AddCommand(cmd.NewListPresetsCommand())
@@ -61,11 +69,23 @@ func runSetup(cmd *cobra.Command, args []string) {
 	color.White("  Hardware: %s", env.Hardware)
 	fmt.Println()
 
-	// Get preset for environment
-	preset := presets.GetPreset(env)
-	if preset == nil {
-		color.Yellow("No preset found for your environment. Creating a basic preset...")
-		preset = presets.GetDefaultPreset()
+	var preset *presets.Preset
+
+	// Check if external config file is provided
+	if configFile != "" {
+		color.Cyan("Loading configuration from: %s", configFile)
+		preset, err = presets.LoadExternalPreset(configFile)
+		if err != nil {
+			color.Red("Error loading external config: %v", err)
+			os.Exit(1)
+		}
+	} else {
+		// Get preset for environment
+		preset = presets.GetPreset(env)
+		if preset == nil {
+			color.Yellow("No preset found for your environment. Creating a basic preset...")
+			preset = presets.GetDefaultPreset()
+		}
 	}
 
 	// Display preset
@@ -101,20 +121,39 @@ func runSetup(cmd *cobra.Command, args []string) {
 	fmt.Println()
 
 	executor := executor.NewExecutor()
-	for i, task := range customizedPreset.Tasks {
-		color.Cyan("Executing task %d/%d: %s", i+1, len(customizedPreset.Tasks), task.Name)
-
-		if err := executor.ExecuteTask(task); err != nil {
-			color.Red("Error executing task '%s': %v", task.Name, err)
-
-			if !ui.ContinueOnError() {
-				color.Yellow("Setup cancelled.")
-				os.Exit(1)
-			}
-		} else {
-			color.Green("✓ Task completed: %s", task.Name)
+	
+	// Use dependency-aware execution if preset has dependencies
+	hasDependencies := false
+	for _, task := range customizedPreset.Tasks {
+		if len(task.DependsOn) > 0 {
+			hasDependencies = true
+			break
 		}
-		fmt.Println()
+	}
+
+	if hasDependencies {
+		color.Cyan("Detected task dependencies - executing in dependency order...")
+		if err := executor.ExecutePresetWithDependencies(customizedPreset); err != nil {
+			color.Red("Error during dependency-ordered execution: %v", err)
+			os.Exit(1)
+		}
+	} else {
+		// Legacy execution for presets without dependencies
+		for i, task := range customizedPreset.Tasks {
+			color.Cyan("Executing task %d/%d: %s", i+1, len(customizedPreset.Tasks), task.Name)
+
+			if err := executor.ExecuteTask(task); err != nil {
+				color.Red("Error executing task '%s': %v", task.Name, err)
+
+				if !ui.ContinueOnError() {
+					color.Yellow("Setup cancelled.")
+					os.Exit(1)
+				}
+			} else {
+				color.Green("✓ Task completed: %s", task.Name)
+			}
+			fmt.Println()
+		}
 	}
 
 	color.Green("Setup completed successfully!")
