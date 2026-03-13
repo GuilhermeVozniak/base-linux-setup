@@ -50,7 +50,7 @@ func main() {
 	}
 }
 
-func runSetup(cmd *cobra.Command, args []string) {
+func runSetup(cobraCmd *cobra.Command, args []string) {
 	// Print banner
 	printBanner()
 
@@ -121,8 +121,8 @@ func runSetup(cmd *cobra.Command, args []string) {
 	color.Green("Starting setup...")
 	fmt.Println()
 
-	executor := executor.NewExecutor()
-	
+	exec := executor.NewExecutor()
+
 	// Use dependency-aware execution if preset has dependencies
 	hasDependencies := false
 	for _, task := range customizedPreset.Tasks {
@@ -134,7 +134,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	if hasDependencies {
 		color.Cyan("Detected task dependencies - executing in dependency order...")
-		if err := executor.ExecutePresetWithDependencies(customizedPreset); err != nil {
+		if err := exec.ExecutePresetWithDependencies(customizedPreset); err != nil {
 			color.Red("Error during dependency-ordered execution: %v", err)
 			os.Exit(1)
 		}
@@ -143,7 +143,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 		for i, task := range customizedPreset.Tasks {
 			color.Cyan("Executing task %d/%d: %s", i+1, len(customizedPreset.Tasks), task.Name)
 
-			if err := executor.ExecuteTask(task); err != nil {
+			if err := exec.ExecuteTask(task); err != nil {
 				color.Red("Error executing task '%s': %v", task.Name, err)
 
 				if !ui.ContinueOnError() {

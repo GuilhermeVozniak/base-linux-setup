@@ -28,7 +28,7 @@ type Task struct {
 	Script      string   `json:"script"`
 	Elevated    bool     `json:"elevated"` // requires sudo
 	Optional    bool     `json:"optional"`
-	Condition   string   `json:"condition,omitempty"`   // Shell command to check if task should run
+	Condition   string   `json:"condition,omitempty"`  // Shell command to check if task should run
 	DependsOn   []string `json:"depends_on,omitempty"` // Array of task names this task depends on
 }
 

@@ -9,14 +9,14 @@ import (
 
 // Environment represents the detected system environment
 type Environment struct {
-	OS           string
-	Distribution string
-	Version      string
-	Architecture string
-	Hardware     string
-	Kernel       string
+	OS            string
+	Distribution  string
+	Version       string
+	Architecture  string
+	Hardware      string
+	Kernel        string
 	IsRaspberryPi bool
-	RawOutput    string
+	RawOutput     string
 }
 
 // DetectEnvironment detects the current environment using neofetch
@@ -172,4 +172,4 @@ func detectHardware() string {
 	}
 
 	return "Generic"
-} 
+}

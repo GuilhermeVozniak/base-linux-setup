@@ -20,8 +20,6 @@ linters-settings:
     enabled-tags:
       - diagnostic
       - style
-    disabled-checks:
-      - hugeParam
 
 issues:
   exclude-rules:
