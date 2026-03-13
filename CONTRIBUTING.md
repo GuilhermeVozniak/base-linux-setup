@@ -163,47 +163,33 @@ base-linux-setup/
 
 ## 🧪 Adding New Presets
 
-### Option 1: JSON Preset (Recommended)
+All presets are JSON files in the `scripts/` directory. No Go code changes are needed.
 
-1. **Create JSON file** in `scripts/` directory:
+1. **Create JSON file** in `scripts/` directory with a `match` field:
 
    ```json
    {
      "name": "My OS Setup",
      "environment": "My OS",
      "description": "Setup for My OS",
+     "match": {
+       "distribution": "myos"
+     },
      "tasks": [...]
    }
    ```
 
-2. **Update detection logic** in `internal/presets/presets.go`:
+2. **Rebuild** with `make build` — the new file is automatically embedded
 
-   ```go
-   if isMyOS(env) {
-       if preset, err := loadPresetFromJSON("my-os.json"); err == nil {
-           return preset
-       }
-   }
-   ```
+3. **Test** with `./build/base-linux-setup list-presets`
 
-3. **Add detection function**:
+The `match` field controls auto-detection. Available criteria:
+- `distribution` — case-insensitive substring match against detected distro
+- `os` — match against detected OS name
+- `architecture` — match against detected architecture
+- `is_raspberry_pi` — `true`/`false` for exact Raspberry Pi match
 
-   ```go
-   func isMyOS(env *detector.Environment) bool {
-       return strings.Contains(strings.ToLower(env.Distribution), "myos")
-   }
-   ```
-
-4. **Test thoroughly** on target systems
-
-### Option 2: Go Code Preset
-
-For complex presets requiring conditional logic, implement directly in Go:
-
-1. **Add preset function** in `internal/presets/presets.go`
-2. **Update GetPreset()** function
-3. **Add to GetAllPresets()** slice
-4. **Test thoroughly**
+The most specific match (most fields) wins. A preset without `match` is the default fallback.
 
 ### Testing Presets
 

@@ -4,22 +4,23 @@ This comprehensive guide covers creating, testing, and maintaining presets for B
 
 ## Overview
 
-Presets define the setup tasks for different operating systems and environments. They can be implemented in two ways:
+Presets define the setup tasks for different operating systems and environments. All presets are **JSON configuration files** in the `scripts/` directory — no Go code changes are needed to add or modify presets. JSON files are embedded into the binary at build time via `go:embed`.
 
-1. **JSON Configuration** (Recommended) - Easy to create and maintain
-2. **Go Code** - For complex logic and conditional tasks
+## JSON Preset Structure
 
-## JSON Preset Development
-
-### Basic Structure
-
-JSON presets follow this structure:
+Each preset follows this structure:
 
 ```json
 {
   "name": "Display Name",
   "environment": "Environment Description",
   "description": "Detailed description of what this preset does",
+  "match": {
+    "distribution": "distro-name",
+    "os": "os-name",
+    "architecture": "arch",
+    "is_raspberry_pi": true
+  },
   "tasks": [
     {
       "name": "Task Name",
@@ -28,7 +29,9 @@ JSON presets follow this structure:
       "commands": ["command1", "command2"],
       "script": "script content for script/file tasks",
       "elevated": true,
-      "optional": false
+      "optional": false,
+      "condition": "shell-command-returns-0-to-run",
+      "depends_on": ["other-task-name"]
     }
   ]
 }
@@ -36,12 +39,26 @@ JSON presets follow this structure:
 
 ### Field Reference
 
+#### Preset Fields
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | ✅ | Display name for the preset |
 | `environment` | string | ✅ | Environment description |
 | `description` | string | ✅ | Detailed preset description |
+| `match` | object | ❌ | Auto-detection criteria (omit for default fallback) |
 | `tasks` | array | ✅ | Array of task objects |
+
+#### Match Criteria Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `distribution` | string | Case-insensitive substring match against detected distro |
+| `os` | string | Match against detected OS name |
+| `architecture` | string | Match against detected architecture (e.g., `amd64`, `arm64`) |
+| `is_raspberry_pi` | bool | Exact match: `true` requires Pi, `false` requires non-Pi |
+
+The preset with the **most matching fields** (highest specificity) wins. A preset without a `match` field serves as the default fallback.
 
 #### Task Fields
 
@@ -54,6 +71,8 @@ JSON presets follow this structure:
 | `script` | string | ❌ | Script content (for script/file tasks) |
 | `elevated` | boolean | ✅ | Whether task requires sudo |
 | `optional` | boolean | ✅ | Whether task can be skipped |
+| `condition` | string | ❌ | Shell command — task runs only if this exits with status 0 |
+| `depends_on` | array | ❌ | Array of task names that must run before this task |
 
 ### Task Types in Detail
 
@@ -194,30 +213,29 @@ Before creating a preset, gather information about:
 
 3. **Add tasks incrementally** and test each one
 
-### Step 3: Add Environment Detection
+### Step 3: Add Match Criteria
 
-Update `internal/presets/presets.go` to recognize your environment:
+Add a `match` field to your JSON so the preset auto-selects for the right environment:
 
-```go
-// Add to GetPreset function
-if isMyEnvironment(env) {
-    if preset, err := loadPresetFromJSON("my-environment.json"); err == nil {
-        return preset
-    }
-    // Optional fallback
-}
-
-// Add detection function
-func isMyEnvironment(env *detector.Environment) bool {
-    dist := strings.ToLower(env.Distribution)
-    os := strings.ToLower(env.OS)
-    
-    return strings.Contains(dist, "mydist") ||
-           strings.Contains(os, "myos")
+```json
+{
+  "name": "My Environment Setup",
+  "environment": "My Linux Distribution",
+  "description": "Complete setup for My Linux Distribution",
+  "match": {
+    "distribution": "mydist"
+  },
+  "tasks": [...]
 }
 ```
 
-### Step 4: Testing
+No Go code changes are needed. The `match` field uses case-insensitive substring matching. The system automatically selects the preset with the most matching criteria (highest specificity).
+
+### Step 4: Rebuild and Test
+
+Rebuild with `make build` — the new JSON file is automatically embedded into the binary.
+
+### Step 5: Testing
 
 Test your preset thoroughly:
 
@@ -299,55 +317,68 @@ Let's walk through creating a complete preset for CentOS:
 }
 ```
 
-### 3. Add Detection Logic
+### 3. Add Match Criteria
 
-```go
-// In internal/presets/presets.go
+The `match` field in the JSON handles auto-detection — no Go code needed:
 
-// Add to GetPreset function
-if isCentOS(env) {
-    if preset, err := loadPresetFromJSON("centos.json"); err == nil {
-        return preset
-    }
+```json
+{
+  "match": {
+    "distribution": "centos"
+  }
 }
+```
 
-// Add detection function
-func isCentOS(env *detector.Environment) bool {
-    dist := strings.ToLower(env.Distribution)
-    return strings.Contains(dist, "centos") ||
-           strings.Contains(dist, "rhel") ||
-           strings.Contains(dist, "red hat")
+This will auto-select on any system where the detected distribution contains "centos" (case-insensitive).
+
+For more specific matching, add more criteria:
+```json
+{
+  "match": {
+    "distribution": "centos",
+    "architecture": "arm64"
+  }
 }
+```
+
+### 4. Rebuild
+
+```bash
+make build
+./build/base-linux-setup list-presets
 ```
 
 ## Advanced Preset Features
 
 ### Conditional Tasks
 
-For complex logic that can't be expressed in JSON, use Go code:
+Use the `condition` field to run tasks only when a shell command succeeds:
 
-```go
-func getCentOSPreset(env *detector.Environment) *Preset {
-    preset := &Preset{
-        Name: "CentOS Setup",
-        Environment: "CentOS Linux",
-        Description: "Setup for CentOS systems",
-        Tasks: []Task{},
-    }
-    
-    // Always include basic tasks
-    preset.Tasks = append(preset.Tasks, getBasicTasks()...)
-    
-    // Conditional tasks based on version
-    if strings.Contains(env.Version, "8") {
-        preset.Tasks = append(preset.Tasks, getCentOS8Tasks()...)
-    } else if strings.Contains(env.Version, "7") {
-        preset.Tasks = append(preset.Tasks, getCentOS7Tasks()...)
-    }
-    
-    return preset
+```json
+{
+  "name": "Install CentOS 8 Packages",
+  "description": "Packages specific to CentOS 8",
+  "type": "command",
+  "commands": ["sudo dnf install -y container-tools"],
+  "elevated": true,
+  "optional": false,
+  "condition": "grep -q '8' /etc/redhat-release"
 }
 ```
+
+### Task Dependencies
+
+Use `depends_on` to control execution order:
+
+```json
+{
+  "name": "Configure Service",
+  "type": "command",
+  "commands": ["sudo systemctl enable myservice"],
+  "elevated": true,
+  "optional": false,
+  "depends_on": ["Install Service Package"]
+}
 
 ### Architecture-Specific Tasks
 
@@ -424,7 +455,7 @@ Before submitting a preset:
 - [ ] **Elevated privileges** are set appropriately
 - [ ] **Optional tasks** are marked correctly
 - [ ] **Error handling** is implemented in scripts
-- [ ] **Environment detection** works reliably
+- [ ] **Match criteria** are set correctly for the target environment
 
 ### Testing on Target Systems
 
@@ -485,8 +516,7 @@ RUN base-linux-setup list-presets
 1. **Create the preset** following this guide
 2. **Test thoroughly** on target systems
 3. **Create a pull request** with:
-   - The JSON preset file
-   - Detection logic updates
+   - The JSON preset file (with `match` field)
    - Documentation updates
    - Test results
 
