@@ -2,9 +2,20 @@ package detector
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
+)
+
+// Pre-compiled regexes for parsing neofetch output
+var (
+	reOS     = regexp.MustCompile(`^OS:\s*(.+)`)
+	reDistro = regexp.MustCompile(`^Distro:\s*(.+)`)
+	reKernel = regexp.MustCompile(`^Kernel:\s*(.+)`)
+	reHost   = regexp.MustCompile(`^Host:\s*(.+)`)
+
+	reVersion = regexp.MustCompile(`(\d+\.\d+|\d+)`)
 )
 
 // Environment represents the detected system environment
@@ -46,28 +57,25 @@ func DetectEnvironment() (*Environment, error) {
 			continue
 		}
 
-		// Extract information using regex patterns
+		// Extract information using pre-compiled regex patterns
 		// Note: neofetch uses "OS:" and "Distro:" for distribution info,
 		// and "Host:" for hardware. It does not output "Architecture:" directly,
 		// so architecture is detected via the uname fallback below.
-		if extractField(line, `^OS:\s*(.+)`, &env.OS) ||
-			extractField(line, `^Distro:\s*(.+)`, &env.Distribution) ||
-			extractField(line, `^Kernel:\s*(.+)`, &env.Kernel) ||
-			extractField(line, `^Host:\s*(.+)`, &env.Hardware) {
+		if extractFieldRe(line, reOS, &env.OS) ||
+			extractFieldRe(line, reDistro, &env.Distribution) ||
+			extractFieldRe(line, reKernel, &env.Kernel) ||
+			extractFieldRe(line, reHost, &env.Hardware) {
 			continue
 		}
 
 		// Check for Raspberry Pi indicators
-		lowerLine := strings.ToLower(line)
-		if strings.Contains(lowerLine, "raspberry") ||
-			strings.Contains(lowerLine, "raspi") ||
-			strings.Contains(lowerLine, "raspberry pi") {
+		if containsRaspberryPiIndicator(line) {
 			env.IsRaspberryPi = true
 		}
 
 		// Extract version info
 		if strings.Contains(line, "OS:") || strings.Contains(line, "Distro:") {
-			if versionMatch := regexp.MustCompile(`(\d+\.\d+|\d+)`).FindString(line); versionMatch != "" {
+			if versionMatch := reVersion.FindString(line); versionMatch != "" {
 				env.Version = versionMatch
 			}
 		}
@@ -94,9 +102,14 @@ func DetectEnvironment() (*Environment, error) {
 	return env, nil
 }
 
-// extractField extracts a field from a line using regex
-func extractField(line, pattern string, target *string) bool {
-	re := regexp.MustCompile(pattern)
+// containsRaspberryPiIndicator checks if a line contains Raspberry Pi indicators
+func containsRaspberryPiIndicator(line string) bool {
+	lower := strings.ToLower(line)
+	return strings.Contains(lower, "raspberry") || strings.Contains(lower, "raspi")
+}
+
+// extractFieldRe extracts a field from a line using a pre-compiled regex
+func extractFieldRe(line string, re *regexp.Regexp, target *string) bool {
 	matches := re.FindStringSubmatch(line)
 	if len(matches) > 1 && target != nil {
 		*target = strings.TrimSpace(matches[1])
@@ -107,33 +120,26 @@ func extractField(line, pattern string, target *string) bool {
 
 // detectOSFallback provides fallback OS detection
 func detectOSFallback() string {
-	if cmd := exec.Command("uname", "-s"); cmd != nil {
-		if output, err := cmd.Output(); err == nil {
-			return strings.TrimSpace(string(output))
-		}
+	if output, err := exec.Command("uname", "-s").Output(); err == nil {
+		return strings.TrimSpace(string(output))
 	}
 	return "Unknown"
 }
 
 // detectDistributionFallback provides fallback distribution detection
 func detectDistributionFallback() string {
-	// Check /etc/os-release
-	if cmd := exec.Command("cat", "/etc/os-release"); cmd != nil {
-		if output, err := cmd.Output(); err == nil {
-			lines := strings.Split(string(output), "\n")
-			for _, line := range lines {
-				if strings.HasPrefix(line, "ID=") {
-					return strings.Trim(strings.TrimPrefix(line, "ID="), "\"")
-				}
+	// Check /etc/os-release (read file directly instead of spawning cat)
+	if data, err := os.ReadFile("/etc/os-release"); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.HasPrefix(line, "ID=") {
+				return strings.Trim(strings.TrimPrefix(line, "ID="), "\"")
 			}
 		}
 	}
 
 	// Check /etc/debian_version for Debian-based systems
-	if cmd := exec.Command("cat", "/etc/debian_version"); cmd != nil {
-		if _, err := cmd.Output(); err == nil {
-			return "debian"
-		}
+	if _, err := os.Stat("/etc/debian_version"); err == nil {
+		return "debian"
 	}
 
 	return "Unknown"
@@ -141,33 +147,27 @@ func detectDistributionFallback() string {
 
 // detectArchitectureFallback provides fallback architecture detection
 func detectArchitectureFallback() string {
-	if cmd := exec.Command("uname", "-m"); cmd != nil {
-		if output, err := cmd.Output(); err == nil {
-			return strings.TrimSpace(string(output))
-		}
+	if output, err := exec.Command("uname", "-m").Output(); err == nil {
+		return strings.TrimSpace(string(output))
 	}
 	return "Unknown"
 }
 
 // detectHardware detects hardware type
 func detectHardware() string {
-	// Check for Raspberry Pi
-	if cmd := exec.Command("cat", "/proc/cpuinfo"); cmd != nil {
-		if output, err := cmd.Output(); err == nil {
-			cpuinfo := strings.ToLower(string(output))
-			if strings.Contains(cpuinfo, "raspberry") || strings.Contains(cpuinfo, "bcm") {
-				return "Raspberry Pi"
-			}
+	// Check for Raspberry Pi via /proc/cpuinfo
+	if data, err := os.ReadFile("/proc/cpuinfo"); err == nil {
+		cpuinfo := strings.ToLower(string(data))
+		if strings.Contains(cpuinfo, "raspberry") || strings.Contains(cpuinfo, "bcm") {
+			return "Raspberry Pi"
 		}
 	}
 
 	// Check for other hardware indicators
-	if cmd := exec.Command("dmidecode", "-t", "system"); cmd != nil {
-		if output, err := cmd.Output(); err == nil {
-			dmidecode := strings.ToLower(string(output))
-			if strings.Contains(dmidecode, "raspberry") {
-				return "Raspberry Pi"
-			}
+	if output, err := exec.Command("dmidecode", "-t", "system").Output(); err == nil {
+		dmidecode := strings.ToLower(string(output))
+		if strings.Contains(dmidecode, "raspberry") {
+			return "Raspberry Pi"
 		}
 	}
 

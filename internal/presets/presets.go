@@ -271,10 +271,10 @@ func matchSpecificity(match *MatchCriteria) int {
 // It loads all embedded presets, matches them against the environment,
 // and returns the most specific match. Falls back to the default preset
 // (one without a match field) if no match is found.
-func GetPreset(env *detector.Environment) *Preset {
+func GetPreset(env *detector.Environment) (*Preset, error) {
 	allPresets, err := loadAllEmbeddedPresets()
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to load presets: %w", err)
 	}
 
 	var bestMatch *Preset
@@ -297,16 +297,12 @@ func GetPreset(env *detector.Environment) *Preset {
 	}
 
 	if bestMatch != nil {
-		return bestMatch
+		return bestMatch, nil
 	}
-	return defaultPreset
+	return defaultPreset, nil
 }
 
 // GetAllPresets returns all available embedded presets
-func GetAllPresets() []*Preset {
-	allPresets, err := loadAllEmbeddedPresets()
-	if err != nil {
-		return nil
-	}
-	return allPresets
+func GetAllPresets() ([]*Preset, error) {
+	return loadAllEmbeddedPresets()
 }

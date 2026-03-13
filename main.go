@@ -81,7 +81,11 @@ func runSetup(cobraCmd *cobra.Command, args []string) {
 		}
 	} else {
 		// Get preset for environment (auto-matches based on detected env, falls back to default)
-		preset = presets.GetPreset(env)
+		preset, err = presets.GetPreset(env)
+		if err != nil {
+			color.Red("Error loading presets: %v", err)
+			os.Exit(1)
+		}
 		if preset == nil {
 			color.Red("No preset found for your environment and no default preset available.")
 			color.Yellow("Use --config to specify a configuration file.")

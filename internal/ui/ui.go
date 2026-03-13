@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"base-linux-setup/internal/presets"
@@ -214,81 +213,4 @@ func ContinueOnError() bool {
 	}
 
 	return result == "Continue with remaining tasks"
-}
-
-// SelectFromList allows user to select items from a list
-func SelectFromList(label string, items []string) ([]string, error) {
-	selected := make([]string, 0)
-
-	for {
-		// Show current selection
-		if len(selected) > 0 {
-			color.Green("Currently selected: %s", strings.Join(selected, ", "))
-		}
-
-		// Create options
-		options := make([]string, 0)
-		for _, item := range items {
-			if !contains(selected, item) {
-				options = append(options, item)
-			}
-		}
-		options = append(options, "Done selecting")
-
-		if len(options) == 1 {
-			break
-		}
-
-		prompt := promptui.Select{
-			Label: label,
-			Items: options,
-		}
-
-		_, result, err := prompt.Run()
-		if err != nil {
-			return nil, err
-		}
-
-		if result == "Done selecting" {
-			break
-		}
-
-		selected = append(selected, result)
-	}
-
-	return selected, nil
-}
-
-// GetNumberInput gets a number input from user
-func GetNumberInput(label string, minVal, maxVal int) (int, error) {
-	prompt := promptui.Prompt{
-		Label: fmt.Sprintf("%s (%d-%d)", label, minVal, maxVal),
-		Validate: func(input string) error {
-			num, err := strconv.Atoi(input)
-			if err != nil {
-				return fmt.Errorf("invalid number")
-			}
-			if num < minVal || num > maxVal {
-				return fmt.Errorf("number must be between %d and %d", minVal, maxVal)
-			}
-			return nil
-		},
-	}
-
-	result, err := prompt.Run()
-	if err != nil {
-		return 0, err
-	}
-
-	return strconv.Atoi(result)
-}
-
-// contains checks if a slice contains a string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
