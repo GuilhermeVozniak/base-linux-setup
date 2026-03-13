@@ -171,17 +171,12 @@ func SortTasksByDependencies(tasks []Task) ([]Task, error) {
 
 // GetPreset returns the appropriate preset for the given environment
 func GetPreset(env *detector.Environment) *Preset {
-	// Check for Kali Linux on Raspberry Pi
+	// Check for Kali Linux on Raspberry Pi (most specific first)
 	if isKaliRaspberryPi(env) {
 		return getKaliRaspberryPiPreset()
 	}
 
-	// Check for other Debian-based systems
-	if isDebianBased(env) {
-		return getDebianBasePreset()
-	}
-
-	// Check for Ubuntu
+	// Check for Ubuntu before generic Debian, since Ubuntu is also Debian-based
 	if isUbuntu(env) {
 		return getUbuntuPreset()
 	}
@@ -189,6 +184,11 @@ func GetPreset(env *detector.Environment) *Preset {
 	// Check for Arch Linux
 	if isArch(env) {
 		return getArchPreset()
+	}
+
+	// Check for other Debian-based systems (broad match, must be last)
+	if isDebianBased(env) {
+		return getDebianBasePreset()
 	}
 
 	return nil

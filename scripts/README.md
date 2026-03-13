@@ -109,9 +109,10 @@ Complete setup for Kali Linux on Raspberry Pi including:
 - System updates
 - Golang installation with architecture detection
 - Development packages
+- raspi-config installation
 - I2C interface configuration
-- Docker installation and setup
-- Development aliases
+- Static IP address configuration
+- mDNS/Avahi networking setup
 
 ## Adding New Presets
 

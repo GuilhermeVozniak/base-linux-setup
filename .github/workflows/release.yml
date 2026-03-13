@@ -58,9 +58,6 @@ jobs:
           COMMIT: ${{ steps.version.outputs.commit }}
         run: |
           BINARY_NAME="base-linux-setup-${{ matrix.goos }}-${{ matrix.goarch }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
 
           # Build with embedded JSON files - no external scripts directory needed
           go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME} -X main.commit=${COMMIT}" -o ${BINARY_NAME} .

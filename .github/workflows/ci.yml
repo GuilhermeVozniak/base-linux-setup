@@ -84,9 +84,6 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           BINARY_NAME="base-linux-setup-${{ matrix.goos }}-${{ matrix.goarch }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
           go build -ldflags "-X main.version=dev -X main.buildTime=$(date -u '+%Y-%m-%d_%H:%M:%S') -X main.commit=$(git rev-parse --short HEAD)" -o ${BINARY_NAME} .
 
       - name: Test binary

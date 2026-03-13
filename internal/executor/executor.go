@@ -235,14 +235,12 @@ func (e *Executor) manageService(task presets.Task) error {
 
 // runCommand runs a single command
 func (e *Executor) runCommand(command string) error {
-	// Parse command
-	parts := strings.Fields(command)
-	if len(parts) == 0 {
+	if strings.TrimSpace(command) == "" {
 		return fmt.Errorf("empty command")
 	}
 
-	// Create command
-	cmd := exec.Command(parts[0], parts[1:]...)
+	// Use sh -c to properly handle quoted arguments, pipes, and shell syntax
+	cmd := exec.Command("sh", "-c", command)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin

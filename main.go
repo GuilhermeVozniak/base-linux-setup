@@ -163,7 +163,7 @@ func printBanner() {
 	banner := `
 ╔══════════════════════════════════════════════════════════════╗
 ║                    Base Linux Setup                          ║
-║              Environment Detection & Setup Tool             ║
+║              Environment Detection & Setup Tool              ║
 ╚══════════════════════════════════════════════════════════════╝
 `
 	color.HiCyan(banner)
