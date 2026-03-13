@@ -2,6 +2,10 @@
   "name": "Kali Linux - Raspberry Pi",
   "environment": "Kali Linux (Raspberry Pi)",
   "description": "Complete setup for Kali Linux on Raspberry Pi with development tools",
+  "match": {
+    "distribution": "kali",
+    "is_raspberry_pi": true
+  },
   "tasks": [
     {
       "name": "Update and Upgrade System",

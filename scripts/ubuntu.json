@@ -1,0 +1,32 @@
+{
+  "name": "Ubuntu Setup",
+  "environment": "Ubuntu Linux",
+  "description": "Setup for Ubuntu systems",
+  "match": {
+    "distribution": "ubuntu"
+  },
+  "tasks": [
+    {
+      "name": "Update System",
+      "description": "Update package lists and upgrade system",
+      "type": "command",
+      "commands": [
+        "sudo apt update",
+        "sudo apt upgrade -y"
+      ],
+      "elevated": true,
+      "optional": false
+    },
+    {
+      "name": "Install Snap Packages",
+      "description": "Install useful snap packages",
+      "type": "command",
+      "commands": [
+        "sudo snap install code --classic",
+        "sudo snap install discord"
+      ],
+      "elevated": true,
+      "optional": true
+    }
+  ]
+}

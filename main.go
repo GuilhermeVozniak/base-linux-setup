@@ -27,8 +27,8 @@ var (
 )
 
 func main() {
-	// Set the embedded JSON getter for presets
-	presets.SetEmbeddedJSONGetter(GetEmbeddedJSON)
+	// Set the embedded filesystem containing preset JSON files
+	presets.SetEmbeddedFS(PresetFiles)
 
 	rootCmd := &cobra.Command{
 		Use:     "base-linux-setup",
@@ -80,11 +80,12 @@ func runSetup(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 	} else {
-		// Get preset for environment
+		// Get preset for environment (auto-matches based on detected env, falls back to default)
 		preset = presets.GetPreset(env)
 		if preset == nil {
-			color.Yellow("No preset found for your environment. Creating a basic preset...")
-			preset = presets.GetDefaultPreset()
+			color.Red("No preset found for your environment and no default preset available.")
+			color.Yellow("Use --config to specify a configuration file.")
+			os.Exit(1)
 		}
 	}
 

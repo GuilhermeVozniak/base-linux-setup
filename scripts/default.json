@@ -1,0 +1,27 @@
+{
+  "name": "Basic Linux Setup",
+  "environment": "Generic Linux",
+  "description": "Basic setup tasks for generic Linux systems",
+  "tasks": [
+    {
+      "name": "Update Package List",
+      "description": "Update the package manager cache",
+      "type": "command",
+      "commands": [
+        "sudo apt-get update || sudo yum update || sudo pacman -Sy"
+      ],
+      "elevated": true,
+      "optional": false
+    },
+    {
+      "name": "Install Basic Tools",
+      "description": "Install essential development tools",
+      "type": "command",
+      "commands": [
+        "sudo apt-get install -y curl wget git || sudo yum install -y curl wget git || sudo pacman -S curl wget git"
+      ],
+      "elevated": true,
+      "optional": false
+    }
+  ]
+}
