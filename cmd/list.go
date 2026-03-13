@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"base-linux-setup/internal/presets"
 	"github.com/fatih/color"
@@ -14,7 +15,11 @@ func NewListPresetsCommand() *cobra.Command {
 		Short: "List all available presets",
 		Long:  `List all available presets for different environments.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			presetList := presets.GetAllPresets()
+			presetList, err := presets.GetAllPresets()
+			if err != nil {
+				color.Red("Error loading presets: %v", err)
+				return
+			}
 
 			if len(presetList) == 0 {
 				color.Yellow("No presets available.")
@@ -43,7 +48,7 @@ func NewListPresetsCommand() *cobra.Command {
 					if preset.Match.IsRaspberryPi != nil {
 						matchInfo = append(matchInfo, fmt.Sprintf("raspberry_pi=%v", *preset.Match.IsRaspberryPi))
 					}
-					color.White("  Match: %s", fmt.Sprintf("[%s]", joinStrings(matchInfo, ", ")))
+					color.White("  Match: [%s]", strings.Join(matchInfo, ", "))
 				} else {
 					color.White("  Match: [default fallback]")
 				}
@@ -57,15 +62,4 @@ func NewListPresetsCommand() *cobra.Command {
 			}
 		},
 	}
-}
-
-func joinStrings(strs []string, sep string) string {
-	result := ""
-	for i, s := range strs {
-		if i > 0 {
-			result += sep
-		}
-		result += s
-	}
-	return result
 }

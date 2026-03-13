@@ -295,47 +295,6 @@ func (e *Executor) dryRunTask(task presets.Task) error {
 	return nil
 }
 
-// ValidatePrerequisites checks if prerequisites are met for task execution
-func (e *Executor) ValidatePrerequisites() error {
-	// Check if running as root when needed
-	if os.Geteuid() == 0 {
-		color.Yellow("Warning: Running as root user")
-	}
-
-	// Check if we have network connectivity
-	if err := e.checkNetworkConnectivity(); err != nil {
-		return fmt.Errorf("network connectivity check failed: %v", err)
-	}
-
-	// Check available disk space
-	if err := e.checkDiskSpace(); err != nil {
-		return fmt.Errorf("disk space check failed: %v", err)
-	}
-
-	return nil
-}
-
-// checkNetworkConnectivity checks internet connectivity
-func (e *Executor) checkNetworkConnectivity() error {
-	cmd := exec.Command("ping", "-c", "1", "8.8.8.8")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("no internet connectivity")
-	}
-	return nil
-}
-
-// checkDiskSpace checks available disk space
-func (e *Executor) checkDiskSpace() error {
-	cmd := exec.Command("df", "-h", "/")
-	output, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to check disk space: %v", err)
-	}
-
-	color.HiBlack("Disk space: %s", strings.TrimSpace(string(output)))
-	return nil
-}
-
 // SetDryRun sets the dry-run mode
 func (e *Executor) SetDryRun(dryRun bool) {
 	e.dryRun = dryRun
@@ -344,62 +303,4 @@ func (e *Executor) SetDryRun(dryRun bool) {
 // IsDryRun returns whether executor is in dry-run mode
 func (e *Executor) IsDryRun() bool {
 	return e.dryRun
-}
-
-// CreateBackup creates a backup of important files before making changes
-func (e *Executor) CreateBackup() error {
-	backupDir := filepath.Join(os.Getenv("HOME"), ".config", "base-linux-setup", "backups")
-	if err := os.MkdirAll(backupDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create backup directory: %v", err)
-	}
-
-	// Backup important files
-	filesToBackup := []string{
-		"/etc/fstab",
-		"/boot/config.txt",
-		"/etc/modules",
-		filepath.Join(os.Getenv("HOME"), ".bashrc"),
-		filepath.Join(os.Getenv("HOME"), ".profile"),
-	}
-
-	timestamp := time.Now().Format("20060102-150405")
-
-	for _, file := range filesToBackup {
-		if _, err := os.Stat(file); err == nil {
-			backupFile := filepath.Join(backupDir, fmt.Sprintf("%s.%s", filepath.Base(file), timestamp))
-			if err := e.copyFile(file, backupFile); err != nil {
-				color.Yellow("Warning: Failed to backup %s: %v", file, err)
-			} else {
-				color.HiBlack("Backed up: %s -> %s", file, backupFile)
-			}
-		}
-	}
-
-	return nil
-}
-
-// copyFile copies a file from src to dst
-func (e *Executor) copyFile(src, dst string) error {
-	cmd := exec.Command("cp", src, dst)
-	return cmd.Run()
-}
-
-// RestoreBackup restores files from backup
-func (e *Executor) RestoreBackup(timestamp string) error {
-	backupDir := filepath.Join(os.Getenv("HOME"), ".config", "base-linux-setup", "backups")
-
-	// List available backups
-	files, err := os.ReadDir(backupDir)
-	if err != nil {
-		return fmt.Errorf("failed to read backup directory: %v", err)
-	}
-
-	for _, file := range files {
-		if strings.Contains(file.Name(), timestamp) {
-			color.Cyan("Found backup: %s", file.Name())
-			// Restore logic would go here
-		}
-	}
-
-	return nil
 }
