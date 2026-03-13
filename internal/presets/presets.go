@@ -3,24 +3,20 @@ package presets
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 
 	"base-linux-setup/internal/detector"
 )
 
-// EmbeddedJSONGetter is a function type for getting embedded JSON data
-type EmbeddedJSONGetter func(filename string) ([]byte, error)
+// embeddedFS holds the embedded preset files
+var embeddedFS fs.FS
 
-// embeddedJSONGetter is the function to get embedded JSON data
-var embeddedJSONGetter EmbeddedJSONGetter
-
-// SetEmbeddedJSONGetter sets the function to get embedded JSON data
-func SetEmbeddedJSONGetter(getter EmbeddedJSONGetter) {
-	embeddedJSONGetter = getter
+// SetEmbeddedFS sets the embedded filesystem containing preset JSON files
+func SetEmbeddedFS(fsys fs.FS) {
+	embeddedFS = fsys
 }
 
 // Task represents a single setup task
@@ -32,16 +28,25 @@ type Task struct {
 	Script      string   `json:"script"`
 	Elevated    bool     `json:"elevated"` // requires sudo
 	Optional    bool     `json:"optional"`
-	Condition   string   `json:"condition,omitempty"`   // Shell command to check if task should run
+	Condition   string   `json:"condition,omitempty"`  // Shell command to check if task should run
 	DependsOn   []string `json:"depends_on,omitempty"` // Array of task names this task depends on
+}
+
+// MatchCriteria defines when a preset should be auto-selected based on the detected environment
+type MatchCriteria struct {
+	Distribution  string `json:"distribution,omitempty"`
+	OS            string `json:"os,omitempty"`
+	Architecture  string `json:"architecture,omitempty"`
+	IsRaspberryPi *bool  `json:"is_raspberry_pi,omitempty"`
 }
 
 // Preset represents a collection of tasks for a specific environment
 type Preset struct {
-	Name        string `json:"name"`
-	Environment string `json:"environment"`
-	Description string `json:"description"`
-	Tasks       []Task `json:"tasks"`
+	Name        string         `json:"name"`
+	Environment string         `json:"environment"`
+	Description string         `json:"description"`
+	Match       *MatchCriteria `json:"match,omitempty"`
+	Tasks       []Task         `json:"tasks"`
 }
 
 // LoadExternalPreset loads a preset from an external JSON file
@@ -110,7 +115,7 @@ func CheckTaskCondition(task *Task) (bool, error) {
 
 	cmd := exec.Command("sh", "-c", task.Condition)
 	err := cmd.Run()
-	
+
 	// If command exits with status 0, condition is met
 	return err == nil, nil
 }
@@ -169,296 +174,139 @@ func SortTasksByDependencies(tasks []Task) ([]Task, error) {
 	return sorted, nil
 }
 
-// GetPreset returns the appropriate preset for the given environment
+// loadAllEmbeddedPresets loads all preset JSON files from the embedded filesystem
+func loadAllEmbeddedPresets() ([]*Preset, error) {
+	if embeddedFS == nil {
+		return nil, fmt.Errorf("embedded filesystem not set")
+	}
+
+	entries, err := fs.ReadDir(embeddedFS, "scripts")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read embedded scripts directory: %v", err)
+	}
+
+	var presets []*Preset
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+
+		data, err := fs.ReadFile(embeddedFS, "scripts/"+entry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to read embedded preset %s: %v", entry.Name(), err)
+		}
+
+		var preset Preset
+		if err := json.Unmarshal(data, &preset); err != nil {
+			return nil, fmt.Errorf("failed to parse embedded preset %s: %v", entry.Name(), err)
+		}
+
+		if err := validatePreset(&preset); err != nil {
+			return nil, fmt.Errorf("invalid embedded preset %s: %v", entry.Name(), err)
+		}
+
+		presets = append(presets, &preset)
+	}
+
+	return presets, nil
+}
+
+// matchesEnvironment checks if a preset's match criteria fits the detected environment
+func matchesEnvironment(match *MatchCriteria, env *detector.Environment) bool {
+	if match == nil {
+		return false
+	}
+
+	if match.Distribution != "" {
+		if !strings.Contains(strings.ToLower(env.Distribution), strings.ToLower(match.Distribution)) &&
+			!strings.Contains(strings.ToLower(env.OS), strings.ToLower(match.Distribution)) {
+			return false
+		}
+	}
+
+	if match.OS != "" {
+		if !strings.Contains(strings.ToLower(env.OS), strings.ToLower(match.OS)) {
+			return false
+		}
+	}
+
+	if match.Architecture != "" {
+		if !strings.Contains(strings.ToLower(env.Architecture), strings.ToLower(match.Architecture)) {
+			return false
+		}
+	}
+
+	if match.IsRaspberryPi != nil {
+		if *match.IsRaspberryPi != env.IsRaspberryPi {
+			return false
+		}
+	}
+
+	return true
+}
+
+// matchSpecificity returns the number of non-empty match fields.
+// Higher specificity means a more specific (better) match.
+func matchSpecificity(match *MatchCriteria) int {
+	if match == nil {
+		return 0
+	}
+	score := 0
+	if match.Distribution != "" {
+		score++
+	}
+	if match.OS != "" {
+		score++
+	}
+	if match.Architecture != "" {
+		score++
+	}
+	if match.IsRaspberryPi != nil {
+		score++
+	}
+	return score
+}
+
+// GetPreset returns the best matching preset for the given environment.
+// It loads all embedded presets, matches them against the environment,
+// and returns the most specific match. Falls back to the default preset
+// (one without a match field) if no match is found.
 func GetPreset(env *detector.Environment) *Preset {
-	// Check for Kali Linux on Raspberry Pi
-	if isKaliRaspberryPi(env) {
-		return getKaliRaspberryPiPreset()
+	allPresets, err := loadAllEmbeddedPresets()
+	if err != nil {
+		return nil
 	}
 
-	// Check for other Debian-based systems
-	if isDebianBased(env) {
-		return getDebianBasePreset()
+	var bestMatch *Preset
+	bestScore := 0
+	var defaultPreset *Preset
+
+	for _, preset := range allPresets {
+		if preset.Match == nil {
+			defaultPreset = preset
+			continue
+		}
+
+		if matchesEnvironment(preset.Match, env) {
+			score := matchSpecificity(preset.Match)
+			if score > bestScore {
+				bestScore = score
+				bestMatch = preset
+			}
+		}
 	}
 
-	// Check for Ubuntu
-	if isUbuntu(env) {
-		return getUbuntuPreset()
+	if bestMatch != nil {
+		return bestMatch
 	}
-
-	// Check for Arch Linux
-	if isArch(env) {
-		return getArchPreset()
-	}
-
-	return nil
+	return defaultPreset
 }
 
-// GetDefaultPreset returns a basic preset for unknown environments
-func GetDefaultPreset() *Preset {
-	return &Preset{
-		Name:        "Basic Linux Setup",
-		Environment: "Generic Linux",
-		Description: "Basic setup tasks for generic Linux systems",
-		Tasks: []Task{
-			{
-				Name:        "Update Package List",
-				Description: "Update the package manager cache",
-				Type:        "command",
-				Commands:    []string{"sudo apt-get update || sudo yum update || sudo pacman -Sy"},
-				Elevated:    true,
-			},
-			{
-				Name:        "Install Basic Tools",
-				Description: "Install essential development tools",
-				Type:        "command",
-				Commands:    []string{"sudo apt-get install -y curl wget git || sudo yum install -y curl wget git || sudo pacman -S curl wget git"},
-				Elevated:    true,
-			},
-		},
-	}
-}
-
-// GetAllPresets returns all available presets
+// GetAllPresets returns all available embedded presets
 func GetAllPresets() []*Preset {
-	return []*Preset{
-		getKaliRaspberryPiPreset(),
-		getDebianBasePreset(),
-		getUbuntuPreset(),
-		getArchPreset(),
-		GetDefaultPreset(),
-	}
-}
-
-// getKaliRaspberryPiPreset returns the preset for Kali Linux on Raspberry Pi
-func getKaliRaspberryPiPreset() *Preset {
-	// Try to load from embedded JSON first
-	if preset, err := loadPresetFromEmbeddedJSON("kali-raspberry-pi.json"); err == nil {
-		return preset
-	}
-
-	// Fallback to external JSON file (for development)
-	if preset, err := loadPresetFromJSON("kali-raspberry-pi.json"); err == nil {
-		return preset
-	}
-
-	// Final fallback to hardcoded preset
-	return &Preset{
-		Name:        "Kali Linux - Raspberry Pi",
-		Environment: "Kali Linux (Raspberry Pi)",
-		Description: "Complete setup for Kali Linux on Raspberry Pi with development tools",
-		Tasks: []Task{
-			{
-				Name:        "Update and Upgrade System",
-				Description: "Update package lists and upgrade all installed packages",
-				Type:        "command",
-				Commands: []string{
-					"sudo apt-get update",
-					"sudo apt-get upgrade -y",
-					"sudo apt-get dist-upgrade -y",
-				},
-				Elevated: true,
-			},
-			{
-				Name:        "Install Golang",
-				Description: "Install Go programming language",
-				Type:        "command",
-				Commands: []string{
-					"sudo apt-get install -y golang-go",
-				},
-				Elevated: true,
-			},
-			{
-				Name:        "Install Required System Packages",
-				Description: "Install essential development and system packages",
-				Type:        "command",
-				Commands: []string{
-					"sudo apt-get install -y build-essential git curl wget vim python3 python3-pip nodejs npm htop tree i2c-tools libi2c-dev python3-smbus",
-				},
-				Elevated: true,
-			},
-			{
-				Name:        "Enable I2C Interface",
-				Description: "Enable I2C interface for hardware communication",
-				Type:        "command",
-				Commands: []string{
-					"sudo raspi-config nonint do_i2c 0",
-				},
-				Elevated: true,
-			},
-		},
-	}
-}
-
-// loadPresetFromEmbeddedJSON loads a preset from embedded JSON data
-func loadPresetFromEmbeddedJSON(filename string) (*Preset, error) {
-	if embeddedJSONGetter == nil {
-		return nil, fmt.Errorf("embedded JSON getter not set")
-	}
-
-	// Get embedded JSON data
-	data, err := embeddedJSONGetter(filename)
+	allPresets, err := loadAllEmbeddedPresets()
 	if err != nil {
-		return nil, err
+		return nil
 	}
-
-	// Parse JSON
-	var preset Preset
-	if err := json.Unmarshal(data, &preset); err != nil {
-		return nil, fmt.Errorf("failed to parse embedded preset JSON: %v", err)
-	}
-
-	return &preset, nil
-}
-
-// loadPresetFromJSON loads a preset from a JSON file (fallback for development)
-func loadPresetFromJSON(filename string) (*Preset, error) {
-	// Get the directory where the executable is located
-	execPath, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get executable path: %v", err)
-	}
-
-	// Look for scripts directory relative to executable
-	scriptDir := filepath.Join(filepath.Dir(execPath), "scripts")
-
-	// If not found, try relative to source code (for development)
-	if _, err := os.Stat(scriptDir); os.IsNotExist(err) {
-		// Get current file's directory for development
-		_, currentFile, _, _ := runtime.Caller(0)
-		projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
-		scriptDir = filepath.Join(projectRoot, "scripts")
-	}
-
-	filePath := filepath.Join(scriptDir, filename)
-
-	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("preset file not found: %s", filePath)
-	}
-
-	// Read the JSON file
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read preset file: %v", err)
-	}
-
-	// Parse JSON
-	var preset Preset
-	if err := json.Unmarshal(data, &preset); err != nil {
-		return nil, fmt.Errorf("failed to parse preset JSON: %v", err)
-	}
-
-	return &preset, nil
-}
-
-// Helper functions for environment detection
-func isKaliRaspberryPi(env *detector.Environment) bool {
-	return (strings.Contains(strings.ToLower(env.Distribution), "kali") ||
-		strings.Contains(strings.ToLower(env.OS), "kali")) &&
-		env.IsRaspberryPi
-}
-
-func isDebianBased(env *detector.Environment) bool {
-	dist := strings.ToLower(env.Distribution)
-	return strings.Contains(dist, "debian") ||
-		strings.Contains(dist, "ubuntu") ||
-		strings.Contains(dist, "kali")
-}
-
-func isUbuntu(env *detector.Environment) bool {
-	return strings.Contains(strings.ToLower(env.Distribution), "ubuntu")
-}
-
-func isArch(env *detector.Environment) bool {
-	return strings.Contains(strings.ToLower(env.Distribution), "arch")
-}
-
-// Additional preset functions
-func getDebianBasePreset() *Preset {
-	return &Preset{
-		Name:        "Debian Base",
-		Environment: "Debian Linux",
-		Description: "Basic setup for Debian-based systems",
-		Tasks: []Task{
-			{
-				Name:        "Update System",
-				Description: "Update and upgrade system packages",
-				Type:        "command",
-				Commands: []string{
-					"sudo apt-get update",
-					"sudo apt-get upgrade -y",
-				},
-				Elevated: true,
-			},
-			{
-				Name:        "Install Essential Packages",
-				Description: "Install essential development tools",
-				Type:        "command",
-				Commands: []string{
-					"sudo apt-get install -y build-essential git curl wget vim",
-				},
-				Elevated: true,
-			},
-		},
-	}
-}
-
-func getUbuntuPreset() *Preset {
-	return &Preset{
-		Name:        "Ubuntu Setup",
-		Environment: "Ubuntu Linux",
-		Description: "Setup for Ubuntu systems",
-		Tasks: []Task{
-			{
-				Name:        "Update System",
-				Description: "Update package lists and upgrade system",
-				Type:        "command",
-				Commands: []string{
-					"sudo apt update",
-					"sudo apt upgrade -y",
-				},
-				Elevated: true,
-			},
-			{
-				Name:        "Install Snap Packages",
-				Description: "Install useful snap packages",
-				Type:        "command",
-				Commands: []string{
-					"sudo snap install code --classic",
-					"sudo snap install discord",
-				},
-				Elevated: true,
-				Optional: true,
-			},
-		},
-	}
-}
-
-func getArchPreset() *Preset {
-	return &Preset{
-		Name:        "Arch Linux Setup",
-		Environment: "Arch Linux",
-		Description: "Setup for Arch Linux systems",
-		Tasks: []Task{
-			{
-				Name:        "Update System",
-				Description: "Update system packages",
-				Type:        "command",
-				Commands: []string{
-					"sudo pacman -Syu --noconfirm",
-				},
-				Elevated: true,
-			},
-			{
-				Name:        "Install Base Development Tools",
-				Description: "Install essential development packages",
-				Type:        "command",
-				Commands: []string{
-					"sudo pacman -S --noconfirm base-devel git curl wget vim",
-				},
-				Elevated: true,
-			},
-		},
-	}
+	return allPresets
 }

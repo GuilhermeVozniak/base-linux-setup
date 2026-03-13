@@ -37,4 +37,4 @@ func NewDetectCommand() *cobra.Command {
 			fmt.Println(env.RawOutput)
 		},
 	}
-} 
+}

@@ -1,0 +1,29 @@
+run:
+  timeout: 3m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gosimple
+    - gocritic
+    - misspell
+    - gofmt
+
+linters-settings:
+  errcheck:
+    check-blank: false
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+
+issues:
+  exclude-rules:
+    # Allow fmt.Println in main and UI (CLI output)
+    - path: "(main|ui)\\.go"
+      linters:
+        - forbidigo

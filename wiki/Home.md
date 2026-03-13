@@ -57,13 +57,15 @@ chmod +x base-linux-setup-linux-amd64
 
 ## 🎯 Supported Environments
 
-| Environment | Status | Tasks |
-|-------------|--------|-------|
-| **Kali Linux (Raspberry Pi)** | ✅ Full Support | 4 core tasks |
-| **Ubuntu** | ✅ Full Support | 2 core tasks |
-| **Debian** | ✅ Full Support | 2 core tasks |
-| **Arch Linux** | ✅ Full Support | 2 core tasks |
-| **Generic Linux** | ✅ Fallback | 2 basic tasks |
+| Environment | Match Criteria | Tasks |
+|-------------|---------------|-------|
+| **Kali Linux (Raspberry Pi)** | `distribution=kali, raspberry_pi=true` | 7 tasks |
+| **Ubuntu** | `distribution=ubuntu` | 2 tasks |
+| **Debian** | `distribution=debian` | 2 tasks |
+| **Arch Linux** | `distribution=arch` | 2 tasks |
+| **Generic Linux** | Default fallback (no match field) | 2 tasks |
+
+Presets are auto-selected using a **specificity-based matching** system. The preset with the most matching criteria wins. For example, a Kali system on Raspberry Pi matches `kali-raspberry-pi.json` (2 criteria) over `debian-base.json` (1 criterion).
 
 ## 🔧 Key Features
 
@@ -71,6 +73,12 @@ chmod +x base-linux-setup-linux-amd64
 - Uses `neofetch` for comprehensive system information
 - Detects OS, distribution, architecture, and hardware
 - Special Raspberry Pi detection and optimization
+
+### Config-File-Driven Presets
+- All presets are JSON files in `scripts/` — no Go code changes needed
+- Presets are embedded into the binary at build time via `go:embed`
+- Auto-selection via `match` field with specificity-based scoring
+- External presets supported via `--config` flag
 
 ### Task Types
 1. **Command Tasks** - Execute shell commands

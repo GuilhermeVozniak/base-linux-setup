@@ -8,11 +8,55 @@ on:
 
 env:
   GO_VERSION: "1.21"
+  GOLANGCI_LINT_VERSION: "v1.62.2"
 
 jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate JSON presets
+        run: |
+          echo "Validating JSON preset files..."
+          FAILED=0
+          for f in scripts/*.json; do
+            if ! python3 -m json.tool "$f" > /dev/null 2>&1; then
+              echo "FAIL: $f"
+              python3 -m json.tool "$f"
+              FAILED=1
+            else
+              echo "OK:   $f"
+            fi
+          done
+          if [ "$FAILED" -eq 1 ]; then
+            echo "JSON validation failed"
+            exit 1
+          fi
+          echo "All JSON files valid"
+
+      - name: Check preset required fields
+        run: |
+          echo "Checking required fields in presets..."
+          FAILED=0
+          for f in scripts/*.json; do
+            for field in name environment tasks; do
+              if ! python3 -c "import json,sys; d=json.load(open('$f')); assert '$field' in d" 2>/dev/null; then
+                echo "FAIL: $f missing required field '$field'"
+                FAILED=1
+              fi
+            done
+          done
+          if [ "$FAILED" -eq 1 ]; then exit 1; fi
+          echo "All presets have required fields"
+
   test:
     name: Test
     runs-on: ubuntu-latest
+    needs: validate
 
     steps:
       - name: Checkout code
@@ -44,7 +88,7 @@ jobs:
         run: go vet ./...
 
       - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
 
       - name: Run golangci-lint
         run: golangci-lint run
@@ -84,13 +128,11 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           BINARY_NAME="base-linux-setup-${{ matrix.goos }}-${{ matrix.goarch }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
           go build -ldflags "-X main.version=dev -X main.buildTime=$(date -u '+%Y-%m-%d_%H:%M:%S') -X main.commit=$(git rev-parse --short HEAD)" -o ${BINARY_NAME} .
 
-      - name: Test binary
+      - name: Smoke test binary
         if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
         run: |
           ./base-linux-setup-linux-amd64 --version
           ./base-linux-setup-linux-amd64 --help
+          ./base-linux-setup-linux-amd64 list-presets

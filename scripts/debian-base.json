@@ -1,0 +1,31 @@
+{
+  "name": "Debian Base",
+  "environment": "Debian Linux",
+  "description": "Basic setup for Debian-based systems",
+  "match": {
+    "distribution": "debian"
+  },
+  "tasks": [
+    {
+      "name": "Update System",
+      "description": "Update and upgrade system packages",
+      "type": "command",
+      "commands": [
+        "sudo apt-get update",
+        "sudo apt-get upgrade -y"
+      ],
+      "elevated": true,
+      "optional": false
+    },
+    {
+      "name": "Install Essential Packages",
+      "description": "Install essential development tools",
+      "type": "command",
+      "commands": [
+        "sudo apt-get install -y build-essential git curl wget vim"
+      ],
+      "elevated": true,
+      "optional": false
+    }
+  ]
+}

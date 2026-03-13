@@ -2,6 +2,7 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags:
       - "v*.*.*"
   workflow_dispatch:
@@ -13,6 +14,11 @@ jobs:
   build:
     name: Build Release Binaries
     runs-on: ubuntu-latest
+    # Skip release on pushes that only change docs
+    if: |
+      github.ref_type == 'tag' ||
+      github.event_name == 'workflow_dispatch' ||
+      !contains(github.event.head_commit.message, '[skip release]')
     strategy:
       fail-fast: false
       matrix:
@@ -42,9 +48,17 @@ jobs:
       - name: Get version info
         id: version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
           BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
           COMMIT=$(git rev-parse --short HEAD)
+
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # Tagged release: use the tag as version
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            # Auto-release from main: generate version from date + short SHA
+            VERSION="v0.0.0-$(date -u '+%Y%m%d%H%M%S')-${COMMIT}"
+          fi
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
           echo "commit=$COMMIT" >> $GITHUB_OUTPUT
@@ -58,9 +72,6 @@ jobs:
           COMMIT: ${{ steps.version.outputs.commit }}
         run: |
           BINARY_NAME="base-linux-setup-${{ matrix.goos }}-${{ matrix.goarch }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
 
           # Build with embedded JSON files - no external scripts directory needed
           go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME} -X main.commit=${COMMIT}" -o ${BINARY_NAME} .
@@ -95,28 +106,34 @@ jobs:
           pattern: binaries-*
           merge-multiple: true
 
-      - name: List downloaded files
-        run: |
-          echo "Current directory contents:"
-          ls -la
-          echo "All files matching base-linux-setup pattern:"
-          ls -la base-linux-setup-* || echo "No base-linux-setup files found"
-          echo "All checksum files:"
-          ls -la *.sha256 || echo "No .sha256 files found"
-          echo "All files in current directory:"
-          find . -name "*" -type f
-
       - name: Get version info
         id: version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
+          COMMIT=$(git rev-parse --short HEAD)
+
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+            IS_TAGGED="true"
+          else
+            VERSION="v0.0.0-$(date -u '+%Y%m%d%H%M%S')-${COMMIT}"
+            IS_TAGGED="false"
+          fi
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is_tagged=$IS_TAGGED" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+
+      - name: Create tag for auto-release
+        if: steps.version.outputs.is_tagged == 'false'
+        run: |
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
 
       - name: Generate changelog
         id: changelog
         run: |
-          if [ $(git tag --list | wc -l) -gt 1 ]; then
-            PREV_TAG=$(git tag --sort=-version:refname | sed -n '2p')
+          if [ $(git tag --list 'v*.*.*' | grep -v '${{ steps.version.outputs.version }}' | wc -l) -gt 0 ]; then
+            PREV_TAG=$(git tag --list 'v*.*.*' --sort=-version:refname | grep -v '${{ steps.version.outputs.version }}' | head -n1)
             echo "## What's Changed" > CHANGELOG.md
             git log --pretty=format:"- %s" ${PREV_TAG}..HEAD >> CHANGELOG.md
           else
@@ -125,7 +142,8 @@ jobs:
           fi
 
           echo "" >> CHANGELOG.md
-          echo "## 🚀 Key Features" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "## Key Features" >> CHANGELOG.md
           echo "- **Standalone binaries**: No external dependencies required" >> CHANGELOG.md
           echo "- **Embedded presets**: JSON configurations built into the binary" >> CHANGELOG.md
           echo "- **Cross-platform**: Supports Linux ARM64, ARM, and x86_64" >> CHANGELOG.md
@@ -159,6 +177,6 @@ jobs:
           files: |
             ./base-linux-setup-*
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.version.outputs.is_tagged == 'false' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

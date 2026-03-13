@@ -40,25 +40,31 @@ base-linux-setup list-presets
 
 # Example output:
 # Available Presets:
-# 
-# ▶ Kali Linux - Raspberry Pi
+#
+# ▶ Kali Linux - Raspberry Pi [distribution=kali, raspberry_pi=true]
 #   Environment: Kali Linux (Raspberry Pi)
-#   Description: Complete setup for Kali Linux on Raspberry Pi
-#   Tasks: 4
+#   Description: Complete setup for Kali Linux on Raspberry Pi with development tools
+#   Tasks: 7
 #     1. Update and Upgrade System
 #     2. Install Golang
 #     3. Install Required System Packages
-#     4. Enable I2C Interface
+#     4. Install raspi-config
+#     5. Enable I2C Interface
+#     6. Configure Fixed IP Address
+#     7. Install and Configure mDNS
 ```
 
 ### Interactive Setup
 ```bash
-# Run the main setup process
+# Run the main setup process (auto-selects preset based on detected environment)
 base-linux-setup
+
+# Use a specific external configuration file
+base-linux-setup --config path/to/my-preset.json
 
 # This will:
 # 1. Detect your environment
-# 2. Show the recommended preset
+# 2. Auto-select the best matching preset (or use --config)
 # 3. Allow customization
 # 4. Execute selected tasks
 ```
@@ -142,37 +148,14 @@ If a task fails, you can choose to:
 
 This preset is automatically selected for Kali Linux running on Raspberry Pi hardware.
 
-**Included Tasks:**
-1. **Update and Upgrade System**
-   ```bash
-   sudo apt-get update
-   sudo apt-get upgrade -y
-   sudo apt-get dist-upgrade -y
-   ```
-
-2. **Install Golang**
-   - Detects ARM architecture automatically
-   - Downloads appropriate Go version
-   - Configures PATH and GOPATH
-   - Creates Go workspace
-
-3. **Install Required System Packages**
-   ```bash
-   sudo apt-get install -y build-essential git curl wget vim nano
-   sudo apt-get install -y python3 python3-pip nodejs npm
-   sudo apt-get install -y htop tree i2c-tools libi2c-dev python3-smbus
-   ```
-
-4. **Enable I2C Interface**
-   - Enables I2C in `/boot/config.txt`
-   - Loads kernel modules
-   - Configures user permissions
-   - Requires reboot to take effect
-
-**Optional Tasks:**
-- Docker installation and configuration
-- Development aliases creation
-- Service management
+**Included Tasks (7 total):**
+1. **Update and Upgrade System** — system update, upgrade, and dist-upgrade
+2. **Install Golang** — architecture-aware Go installation with PATH configuration
+3. **Install Required System Packages** — build-essential, git, curl, Python, Node.js, I2C tools
+4. **Install raspi-config** — Raspberry Pi configuration tool (adds Raspbian repository)
+5. **Enable I2C Interface** — enables I2C in `/boot/config.txt`, loads kernel modules
+6. **Configure Fixed IP Address** — static IP configuration (192.168.1.100)
+7. **Install and Configure mDNS** — Avahi daemon for `kali-pi.local` networking
 
 ### Ubuntu Preset
 
@@ -288,9 +271,10 @@ The tool stores minimal configuration in:
 
 #### Custom Presets
 You can create custom presets by:
-1. Creating JSON files in the `scripts/` directory
+1. Creating JSON files in the `scripts/` directory with a `match` field
 2. Following the format in `scripts/README.md`
-3. Modifying detection logic if needed
+3. Rebuilding with `make build` (no Go code changes needed)
+4. Or loading external presets at runtime with `--config`
 
 ## Tips and Best Practices
 

@@ -1,6 +1,6 @@
 # Scripts Directory
 
-This directory contains preset configuration files in JSON format. These files define the setup tasks for different operating systems and environments.
+This directory contains preset configuration files in JSON format. These files define the setup tasks for different operating systems and environments. All JSON files here are embedded into the binary at build time via `go:embed`.
 
 ## JSON Preset Format
 
@@ -11,6 +11,12 @@ Each preset file follows this JSON structure:
   "name": "Preset Name",
   "environment": "Environment Description",
   "description": "Detailed description of what this preset does",
+  "match": {
+    "distribution": "distro-name",
+    "os": "os-name",
+    "architecture": "arch",
+    "is_raspberry_pi": true
+  },
   "tasks": [
     {
       "name": "Task Name",
@@ -19,17 +25,32 @@ Each preset file follows this JSON structure:
       "commands": ["command1", "command2"],
       "script": "#!/bin/bash\necho 'script content'",
       "elevated": true|false,
-      "optional": true|false
+      "optional": true|false,
+      "condition": "shell-command-returns-0-to-run",
+      "depends_on": ["other-task-name"]
     }
   ]
 }
 ```
 
+## Match Criteria
+
+The `match` field controls which preset is auto-selected based on the detected environment. All fields are optional and use case-insensitive substring matching:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `distribution` | string | Matches against detected distribution name (e.g., "kali", "ubuntu") |
+| `os` | string | Matches against detected OS name |
+| `architecture` | string | Matches against detected architecture (e.g., "amd64", "arm64") |
+| `is_raspberry_pi` | bool | Exact match: `true` requires Pi, `false` requires non-Pi |
+
+The preset with the **most matching fields** (highest specificity) wins. A preset without a `match` field serves as the default fallback.
+
 ## Task Types
 
 ### 1. Command Tasks
 
-Execute shell commands sequentially.
+Execute shell commands sequentially via `sh -c`.
 
 ```json
 {
@@ -44,7 +65,7 @@ Execute shell commands sequentially.
 
 ### 2. Script Tasks
 
-Execute bash scripts.
+Execute bash scripts (written to a temp file and run).
 
 ```json
 {
@@ -92,13 +113,15 @@ Service actions: `start`, `stop`, `enable`, `disable`, `restart`, `reload`, `sta
 
 ## Field Descriptions
 
-- **name**: Display name for the task
+- **name**: Display name for the task (required)
 - **description**: Detailed description shown to the user
 - **type**: Task type (`command`, `script`, `file`, `service`)
 - **commands**: Array of commands or parameters (usage varies by task type)
 - **script**: Script content or file content (for script and file tasks)
 - **elevated**: Whether the task requires sudo privileges
 - **optional**: Whether the task can be skipped by the user
+- **condition**: Shell command — task runs only if this exits with status 0
+- **depends_on**: Array of task names that must run before this task
 
 ## Available Presets
 
@@ -109,33 +132,52 @@ Complete setup for Kali Linux on Raspberry Pi including:
 - System updates
 - Golang installation with architecture detection
 - Development packages
+- raspi-config installation
 - I2C interface configuration
-- Docker installation and setup
-- Development aliases
+- Static IP address configuration
+- mDNS/Avahi networking setup
+
+### debian-base.json
+
+Basic setup for Debian-based systems: system updates and essential development tools.
+
+### ubuntu.json
+
+Setup for Ubuntu systems: system updates and optional snap package installation.
+
+### arch.json
+
+Setup for Arch Linux: system updates and base development tools via pacman.
+
+### default.json
+
+Generic fallback preset with multi-package-manager commands for basic tool installation.
 
 ## Adding New Presets
 
 1. Create a new JSON file in this directory
-2. Follow the JSON format above
-3. Update `internal/presets/presets.go` to load your preset:
+2. Add a `match` field so it auto-selects for the right environment
+3. Rebuild with `make build` — no Go code changes needed
+4. Verify with `./build/base-linux-setup list-presets`
 
-```go
-// In the appropriate detection function
-if isYourEnvironment(env) {
-    if preset, err := loadPresetFromJSON("your-preset.json"); err == nil {
-        return preset
-    }
-    // Fallback preset if needed
-}
+You can also use any preset directly with `--config`:
+```bash
+./build/base-linux-setup --config scripts/my-preset.json
 ```
 
 ## Testing Presets
 
-You can test your JSON presets by:
+```bash
+# 1. Validate JSON syntax
+python3 -m json.tool scripts/my-preset.json
 
-1. Building the application: `make build`
-2. Listing presets: `./build/base-linux-setup list-presets`
-3. Running in dry-run mode (future feature)
+# 2. Build and verify
+make build
+./build/base-linux-setup list-presets
+
+# 3. Test with external config (without rebuilding)
+./build/base-linux-setup --config scripts/my-preset.json
+```
 
 ## Notes
 
@@ -143,4 +185,5 @@ You can test your JSON presets by:
 - Use absolute paths where necessary
 - Test on target systems before deploying
 - Consider making destructive operations optional
+- Tasks that use `sudo` internally should set `"elevated": true`
 - Document any system requirements or dependencies

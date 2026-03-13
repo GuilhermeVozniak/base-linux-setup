@@ -9,14 +9,14 @@ import (
 
 // Environment represents the detected system environment
 type Environment struct {
-	OS           string
-	Distribution string
-	Version      string
-	Architecture string
-	Hardware     string
-	Kernel       string
+	OS            string
+	Distribution  string
+	Version       string
+	Architecture  string
+	Hardware      string
+	Kernel        string
 	IsRaspberryPi bool
-	RawOutput    string
+	RawOutput     string
 }
 
 // DetectEnvironment detects the current environment using neofetch
@@ -47,17 +47,21 @@ func DetectEnvironment() (*Environment, error) {
 		}
 
 		// Extract information using regex patterns
-		if extractField(line, `OS:\s*(.+)`, &env.OS) ||
-			extractField(line, `Distro:\s*(.+)`, &env.Distribution) ||
-			extractField(line, `Kernel:\s*(.+)`, &env.Kernel) ||
-			extractField(line, `Shell:\s*(.+)`, nil) ||
-			extractField(line, `Architecture:\s*(.+)`, &env.Architecture) {
+		// Note: neofetch uses "OS:" and "Distro:" for distribution info,
+		// and "Host:" for hardware. It does not output "Architecture:" directly,
+		// so architecture is detected via the uname fallback below.
+		if extractField(line, `^OS:\s*(.+)`, &env.OS) ||
+			extractField(line, `^Distro:\s*(.+)`, &env.Distribution) ||
+			extractField(line, `^Kernel:\s*(.+)`, &env.Kernel) ||
+			extractField(line, `^Host:\s*(.+)`, &env.Hardware) {
 			continue
 		}
 
-		// Check for specific patterns
-		if strings.Contains(strings.ToLower(line), "raspberry") ||
-			strings.Contains(strings.ToLower(line), "pi") {
+		// Check for Raspberry Pi indicators
+		lowerLine := strings.ToLower(line)
+		if strings.Contains(lowerLine, "raspberry") ||
+			strings.Contains(lowerLine, "raspi") ||
+			strings.Contains(lowerLine, "raspberry pi") {
 			env.IsRaspberryPi = true
 		}
 
@@ -80,8 +84,12 @@ func DetectEnvironment() (*Environment, error) {
 		env.Architecture = detectArchitectureFallback()
 	}
 
-	// Detect hardware
-	env.Hardware = detectHardware()
+	// Detect hardware via /proc/cpuinfo if not already set from neofetch Host field
+	if env.Hardware == "" {
+		env.Hardware = detectHardware()
+	} else if strings.Contains(strings.ToLower(env.Hardware), "raspberry") {
+		env.IsRaspberryPi = true
+	}
 
 	return env, nil
 }
@@ -164,4 +172,4 @@ func detectHardware() string {
 	}
 
 	return "Generic"
-} 
+}

@@ -27,8 +27,8 @@ var (
 )
 
 func main() {
-	// Set the embedded JSON getter for presets
-	presets.SetEmbeddedJSONGetter(GetEmbeddedJSON)
+	// Set the embedded filesystem containing preset JSON files
+	presets.SetEmbeddedFS(PresetFiles)
 
 	rootCmd := &cobra.Command{
 		Use:     "base-linux-setup",
@@ -50,7 +50,7 @@ func main() {
 	}
 }
 
-func runSetup(cmd *cobra.Command, args []string) {
+func runSetup(cobraCmd *cobra.Command, args []string) {
 	// Print banner
 	printBanner()
 
@@ -80,11 +80,12 @@ func runSetup(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 	} else {
-		// Get preset for environment
+		// Get preset for environment (auto-matches based on detected env, falls back to default)
 		preset = presets.GetPreset(env)
 		if preset == nil {
-			color.Yellow("No preset found for your environment. Creating a basic preset...")
-			preset = presets.GetDefaultPreset()
+			color.Red("No preset found for your environment and no default preset available.")
+			color.Yellow("Use --config to specify a configuration file.")
+			os.Exit(1)
 		}
 	}
 
@@ -120,8 +121,8 @@ func runSetup(cmd *cobra.Command, args []string) {
 	color.Green("Starting setup...")
 	fmt.Println()
 
-	executor := executor.NewExecutor()
-	
+	exec := executor.NewExecutor()
+
 	// Use dependency-aware execution if preset has dependencies
 	hasDependencies := false
 	for _, task := range customizedPreset.Tasks {
@@ -133,7 +134,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	if hasDependencies {
 		color.Cyan("Detected task dependencies - executing in dependency order...")
-		if err := executor.ExecutePresetWithDependencies(customizedPreset); err != nil {
+		if err := exec.ExecutePresetWithDependencies(customizedPreset); err != nil {
 			color.Red("Error during dependency-ordered execution: %v", err)
 			os.Exit(1)
 		}
@@ -142,7 +143,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 		for i, task := range customizedPreset.Tasks {
 			color.Cyan("Executing task %d/%d: %s", i+1, len(customizedPreset.Tasks), task.Name)
 
-			if err := executor.ExecuteTask(task); err != nil {
+			if err := exec.ExecuteTask(task); err != nil {
 				color.Red("Error executing task '%s': %v", task.Name, err)
 
 				if !ui.ContinueOnError() {
@@ -163,7 +164,7 @@ func printBanner() {
 	banner := `
 ╔══════════════════════════════════════════════════════════════╗
 ║                    Base Linux Setup                          ║
-║              Environment Detection & Setup Tool             ║
+║              Environment Detection & Setup Tool              ║
 ╚══════════════════════════════════════════════════════════════╝
 `
 	color.HiCyan(banner)

@@ -78,7 +78,7 @@ func (e *Executor) ExecutePresetWithDependencies(preset *presets.Preset) error {
 		if err := e.ExecuteTask(task); err != nil {
 			return fmt.Errorf("error executing task '%s': %v", task.Name, err)
 		}
-		
+
 		color.Green("✓ Task completed: %s", task.Name)
 		fmt.Println()
 	}
@@ -116,7 +116,7 @@ func (e *Executor) executeScript(task presets.Task) error {
 	tmpFile.Close()
 
 	// Make script executable
-	if err := os.Chmod(tmpFile.Name(), 0755); err != nil {
+	if err := os.Chmod(tmpFile.Name(), 0o755); err != nil {
 		return fmt.Errorf("failed to make script executable: %v", err)
 	}
 
@@ -136,7 +136,7 @@ func (e *Executor) createFile(task presets.Task) error {
 
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %v", dir, err)
 	}
 
@@ -172,10 +172,10 @@ func (e *Executor) manageService(task presets.Task) error {
 	if len(task.Commands) < 2 {
 		return fmt.Errorf("service task requires service name and action in Commands")
 	}
-	
+
 	serviceName := task.Commands[0]
 	action := task.Commands[1]
-	
+
 	// Validate action
 	validActions := []string{"start", "stop", "enable", "disable", "restart", "reload", "status"}
 	isValidAction := false
@@ -185,11 +185,11 @@ func (e *Executor) manageService(task presets.Task) error {
 			break
 		}
 	}
-	
+
 	if !isValidAction {
 		return fmt.Errorf("invalid service action: %s. Valid actions: %v", action, validActions)
 	}
-	
+
 	// Build systemctl command
 	var cmd *exec.Cmd
 	if action == "status" {
@@ -199,25 +199,25 @@ func (e *Executor) manageService(task presets.Task) error {
 		// For other actions, we typically need sudo
 		cmd = exec.Command("sudo", "systemctl", action, serviceName)
 	}
-	
+
 	// Set up command execution
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
-	
+
 	color.HiBlack("    Running: systemctl %s %s", action, serviceName)
-	
+
 	startTime := time.Now()
 	err := cmd.Run()
 	duration := time.Since(startTime)
-	
+
 	if err != nil {
 		color.Red("    ✗ Service operation failed in %v", duration)
 		return fmt.Errorf("systemctl %s %s failed: %v", action, serviceName, err)
 	}
-	
+
 	color.HiGreen("    ✓ Service operation completed in %v", duration)
-	
+
 	// Additional actions based on the operation
 	switch action {
 	case "enable":
@@ -229,20 +229,18 @@ func (e *Executor) manageService(task presets.Task) error {
 	case "stop":
 		color.HiBlack("    Service %s is now stopped", serviceName)
 	}
-	
+
 	return nil
 }
 
 // runCommand runs a single command
 func (e *Executor) runCommand(command string) error {
-	// Parse command
-	parts := strings.Fields(command)
-	if len(parts) == 0 {
+	if strings.TrimSpace(command) == "" {
 		return fmt.Errorf("empty command")
 	}
 
-	// Create command
-	cmd := exec.Command(parts[0], parts[1:]...)
+	// Use sh -c to properly handle quoted arguments, pipes, and shell syntax
+	cmd := exec.Command("sh", "-c", command)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -351,7 +349,7 @@ func (e *Executor) IsDryRun() bool {
 // CreateBackup creates a backup of important files before making changes
 func (e *Executor) CreateBackup() error {
 	backupDir := filepath.Join(os.Getenv("HOME"), ".config", "base-linux-setup", "backups")
-	if err := os.MkdirAll(backupDir, 0755); err != nil {
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create backup directory: %v", err)
 	}
 

@@ -265,13 +265,18 @@ base-linux-setup/
 │   └── list.go            # List presets command
 ├── internal/              # Internal packages
 │   ├── detector/          # Environment detection logic
-│   ├── presets/           # Preset definitions and JSON loader
+│   ├── presets/           # Preset loading, matching, and validation
 │   ├── ui/               # User interface components
 │   └── executor/          # Task execution engine
-├── scripts/               # JSON preset configurations
+├── scripts/               # JSON preset configurations (embedded at build time)
 │   ├── kali-raspberry-pi.json  # Kali Linux Raspberry Pi preset
-│   └── README.md          # JSON format documentation
+│   ├── debian-base.json        # Debian preset
+│   ├── ubuntu.json             # Ubuntu preset
+│   ├── arch.json               # Arch Linux preset
+│   ├── default.json            # Generic fallback preset
+│   └── README.md               # JSON format documentation
 ├── main.go               # Main entry point
+├── assets.go             # go:embed for all preset JSON files
 ├── go.mod               # Go module dependencies
 ├── Makefile             # Build automation
 ├── LICENSE              # MIT License
@@ -281,19 +286,12 @@ base-linux-setup/
 
 ### Adding New Presets
 
-**Option 1: JSON Configuration (Recommended)**
+All presets are JSON files in the `scripts/` directory. No Go code changes are needed.
 
 1. Create a new JSON file in the `scripts/` directory
-2. Follow the JSON format documented in `scripts/README.md`
-3. Update the detection logic in `internal/presets/presets.go` to load your JSON file
+2. Add a `match` field to control auto-detection (see below)
+3. Rebuild with `make build`
 4. Test with `./build/base-linux-setup list-presets`
-
-**Option 2: Go Code**
-
-1. Create a new preset function in `internal/presets/presets.go`
-2. Add detection logic in the `GetPreset` function
-3. Define tasks using the `Task` struct
-4. Test with various environments
 
 **JSON Format Example:**
 
@@ -302,6 +300,9 @@ base-linux-setup/
   "name": "My Custom Preset",
   "environment": "Custom Linux",
   "description": "Custom setup tasks",
+  "match": {
+    "distribution": "mydistro"
+  },
   "tasks": [
     {
       "name": "Install Tools",
@@ -312,6 +313,19 @@ base-linux-setup/
     }
   ]
 }
+```
+
+**Match fields** (all optional, case-insensitive substring match):
+- `distribution` — matches against detected distribution name
+- `os` — matches against detected OS name
+- `architecture` — matches against detected architecture
+- `is_raspberry_pi` — `true`/`false` for exact Raspberry Pi match
+
+The preset with the most matching fields wins. A preset without a `match` field serves as the default fallback.
+
+You can also use any preset file directly with `--config`:
+```bash
+./build/base-linux-setup --config scripts/kali-raspberry-pi.json
 ```
 
 ### Contributing
@@ -351,14 +365,6 @@ ping -c 1 golang.org
 ```bash
 # Reboot after enabling I2C
 sudo reboot
-```
-
-### Debug Mode
-
-Enable verbose output:
-
-```bash
-./build/base-linux-setup --verbose
 ```
 
 ### Platform-Specific Notes

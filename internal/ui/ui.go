@@ -260,16 +260,16 @@ func SelectFromList(label string, items []string) ([]string, error) {
 }
 
 // GetNumberInput gets a number input from user
-func GetNumberInput(label string, min, max int) (int, error) {
+func GetNumberInput(label string, minVal, maxVal int) (int, error) {
 	prompt := promptui.Prompt{
-		Label: fmt.Sprintf("%s (%d-%d)", label, min, max),
+		Label: fmt.Sprintf("%s (%d-%d)", label, minVal, maxVal),
 		Validate: func(input string) error {
 			num, err := strconv.Atoi(input)
 			if err != nil {
 				return fmt.Errorf("invalid number")
 			}
-			if num < min || num > max {
-				return fmt.Errorf("number must be between %d and %d", min, max)
+			if num < minVal || num > maxVal {
+				return fmt.Errorf("number must be between %d and %d", minVal, maxVal)
 			}
 			return nil
 		},

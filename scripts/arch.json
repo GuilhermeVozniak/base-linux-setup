@@ -1,0 +1,30 @@
+{
+  "name": "Arch Linux Setup",
+  "environment": "Arch Linux",
+  "description": "Setup for Arch Linux systems",
+  "match": {
+    "distribution": "arch"
+  },
+  "tasks": [
+    {
+      "name": "Update System",
+      "description": "Update system packages",
+      "type": "command",
+      "commands": [
+        "sudo pacman -Syu --noconfirm"
+      ],
+      "elevated": true,
+      "optional": false
+    },
+    {
+      "name": "Install Base Development Tools",
+      "description": "Install essential development packages",
+      "type": "command",
+      "commands": [
+        "sudo pacman -S --noconfirm base-devel git curl wget vim"
+      ],
+      "elevated": true,
+      "optional": false
+    }
+  ]
+}
